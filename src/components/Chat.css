@@ -584,4 +584,18 @@ body {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+.user-mention {
+  color: #ff4500;
+  font-weight: 500;
+  background-color: rgba(255, 69, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.user-mention:hover {
+  background-color: rgba(255, 69, 0, 0.2);
+  cursor: pointer;
 } 

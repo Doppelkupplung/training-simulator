@@ -242,6 +242,24 @@ Reasoning: This message is directly responding to TechGamer404's previous commen
 
 const STORAGE_KEY = 'reddit_simulator_messages';
 
+const formatMessageWithMentions = (content, personas) => {
+  // Create a regex pattern that matches @username mentions
+  const mentionPattern = new RegExp(`@(${personas.map(p => p.username).join('|')})\\b`, 'g');
+  
+  // Split the content by mentions and map each part
+  const parts = content.split(mentionPattern);
+  
+  return parts.map((part, index) => {
+    // Check if this username exists in personas
+    const isUsername = personas.some(p => p.username === part);
+    
+    if (isUsername) {
+      return <span key={index} className="user-mention">@{part}</span>;
+    }
+    return part;
+  });
+};
+
 function Chat({ personas }) {
   const [messages, setMessages] = useState(() => {
     // Try to load messages from localStorage on initial render
@@ -930,7 +948,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                 </div>
               </div>
               <div className="comment-content">
-                {message.content}
+                {formatMessageWithMentions(message.content, personas)}
                 {message.id === messages.length && isStreaming && (
                   <span className="typing-indicator">▊</span>
                 )}
@@ -994,7 +1012,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                         </div>
                       </div>
                       <div className="comment-content">
-                        {reply.content}
+                        {formatMessageWithMentions(reply.content, personas)}
                       </div>
                       <div className="comment-actions">
                         <button 
@@ -1056,7 +1074,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                                 </div>
                               </div>
                               <div className="comment-content">
-                                {nestedReply.content}
+                                {formatMessageWithMentions(nestedReply.content, personas)}
                               </div>
                               <div className="comment-actions">
                                 <button className="action-button">
