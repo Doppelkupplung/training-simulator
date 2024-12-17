@@ -279,19 +279,19 @@ Respond to the conversation in character, maintaining consistency with your prof
 
         // Stream the response for main message
         for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content || '';
-          responseContent += content;
+          const chunkContent = chunk.choices[0]?.delta?.content || '';
+          responseContent += chunkContent;
           setMessages(prev => prev.map(msg => 
             msg.id === responseId 
-              ? { ...msg, content: msg.content + content }
+              ? { ...msg, content: msg.content + chunkContent }
               : msg
           ));
         }
       } else {
         // For replies, accumulate the content first
         for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content || '';
-          responseContent += content;
+          const chunkContent = chunk.choices[0]?.delta?.content || '';
+          responseContent += chunkContent;
         }
 
         // Then add the complete reply to the parent message
@@ -391,12 +391,23 @@ Respond to the conversation in character, maintaining consistency with your prof
         <div className="chat-messages">
           {messages.map((message) => (
             <div key={message.id} className={`reddit-comment ${message.role}`}>
-              <div className="comment-metadata">
-                <span className="username">u/{message.username}</span>
-                <span className="karma-dot">•</span>
-                <span className="karma">{message.karma} karma</span>
-                <span className="karma-dot">•</span>
-                <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
+              <div className="comment-header">
+                <div className="comment-user-info">
+                  {message.role === 'assistant' && (
+                    <img 
+                      src={personas.find(p => p.username === message.username)?.imageUrl || '/default-avatar.png'} 
+                      alt={`${message.username}'s avatar`}
+                      className="comment-avatar"
+                    />
+                  )}
+                  <div className="comment-metadata">
+                    <span className="username">u/{message.username}</span>
+                    <span className="karma-dot">•</span>
+                    <span className="karma">{message.karma} karma</span>
+                    <span className="karma-dot">•</span>
+                    <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
+                  </div>
+                </div>
               </div>
               <div className="comment-content">
                 {message.content}
@@ -434,18 +445,26 @@ Respond to the conversation in character, maintaining consistency with your prof
                 <div className="nested-replies">
                   {message.replies.map(reply => (
                     <div key={reply.id} className={`reddit-comment ${reply.role}`}>
-                      <div className="comment-metadata">
-                        <span className="username">u/{reply.username}</span>
-                        <span className="karma-dot">•</span>
-                        <span className="karma">{reply.karma} karma</span>
-                        <span className="karma-dot">•</span>
-                        <span className="timestamp">{formatTimestamp(reply.timestamp)}</span>
+                      <div className="comment-header">
+                        <div className="comment-user-info">
+                          {reply.role === 'assistant' && (
+                            <img 
+                              src={personas.find(p => p.username === reply.username)?.imageUrl || '/default-avatar.png'} 
+                              alt={`${reply.username}'s avatar`}
+                              className="comment-avatar"
+                            />
+                          )}
+                          <div className="comment-metadata">
+                            <span className="username">u/{reply.username}</span>
+                            <span className="karma-dot">•</span>
+                            <span className="karma">{reply.karma} karma</span>
+                            <span className="karma-dot">•</span>
+                            <span className="timestamp">{formatTimestamp(reply.timestamp)}</span>
+                          </div>
+                        </div>
                       </div>
                       <div className="comment-content">
                         {reply.content}
-                        {reply.id === messages.length && isStreaming && (
-                          <span className="typing-indicator">▊</span>
-                        )}
                       </div>
                       <div className="comment-actions">
                         <button className="action-button">

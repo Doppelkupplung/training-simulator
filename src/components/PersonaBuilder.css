@@ -2,6 +2,9 @@
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .persona-header {
@@ -15,6 +18,11 @@
   color: #e4e5e7;
   margin: 0;
   font-size: 1.8rem;
+}
+
+.persona-header-buttons {
+  display: flex;
+  gap: 1rem;
 }
 
 .add-persona-button {
@@ -33,11 +41,39 @@
   transform: translateY(-1px);
 }
 
+.add-persona-button.random {
+  background-color: #4a4a4a;
+}
+
+.add-persona-button.random:hover {
+  background-color: #5a5a5a;
+}
+
 .personas-list {
   background-color: #25262b;
   border-radius: 8px;
   padding: 2rem;
-  min-height: 300px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.personas-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.personas-list::-webkit-scrollbar-track {
+  background: #1a1b1f;
+  border-radius: 4px;
+}
+
+.personas-list::-webkit-scrollbar-thumb {
+  background: #3f4044;
+  border-radius: 4px;
+}
+
+.personas-list::-webkit-scrollbar-thumb:hover {
+  background: #4c4d52;
 }
 
 .empty-state {
@@ -53,12 +89,13 @@
 .persona-card {
   background-color: #2c2d32;
   border-radius: 6px;
-  padding: 1.5rem;
+  padding: 1rem;
   margin-bottom: 1rem;
   transition: all 0.3s ease;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
 }
 
 .persona-card:hover {
@@ -66,8 +103,21 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.persona-image {
+  flex-shrink: 0;
+}
+
+.persona-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ccc;
+}
+
 .persona-content {
   flex: 1;
+  min-width: 0;
 }
 
 .persona-content h3 {
@@ -93,10 +143,11 @@
 }
 
 .persona-actions {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-left: 1rem;
+  margin-left: auto;
 }
 
 .edit-button, .delete-button {
@@ -144,4 +195,50 @@
 
 .username-input input {
   padding-left: 32px !important;
-} 
+}
+
+.loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-spinner::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffffff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.button-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.generation-status {
+  font-size: 0.8rem;
+  color: #a6a7ab;
+  text-align: center;
+  min-height: 1rem;
+  margin-top: -0.25rem;
+}
+
+.generation-status:empty {
+  display: none;
+}
+ 
