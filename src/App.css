@@ -62,3 +62,16 @@ button {
     transform: rotate(360deg);
   }
 }
+
+.loading, .error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: calc(100vh - 64px);
+  font-size: 1.2rem;
+  color: #e4e5e7;
+}
+
+.error {
+  color: #ff6b6b;
+}
