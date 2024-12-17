@@ -919,7 +919,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                     />
                   )}
                   <div className="comment-metadata">
-                    <span className="username">u/{message.username}</span>
+                    <span 
+                      className="username"
+                      onMouseEnter={(e) => {
+                        const rect = e.target.getBoundingClientRect();
+                        handleShowUserInfo(message.username, {
+                          x: rect.left,
+                          y: rect.bottom + 8
+                        });
+                      }}
+                      onMouseLeave={() => handleShowUserInfo(null)}
+                    >u/{message.username}</span>
                     <span className="karma-dot">•</span>
                     <span className="karma">{message.karma} karma</span>
                     <span className="karma-dot">•</span>
@@ -987,7 +997,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                             />
                           )}
                           <div className="comment-metadata">
-                            <span className="username">u/{reply.username}</span>
+                            <span 
+                              className="username"
+                              onMouseEnter={(e) => {
+                                const rect = e.target.getBoundingClientRect();
+                                handleShowUserInfo(reply.username, {
+                                  x: rect.left,
+                                  y: rect.bottom + 8
+                                });
+                              }}
+                              onMouseLeave={() => handleShowUserInfo(null)}
+                            >u/{reply.username}</span>
                             <span className="karma-dot">•</span>
                             <span className="karma">{reply.karma} karma</span>
                             <span className="karma-dot">•</span>
@@ -1053,7 +1073,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                                     />
                                   )}
                                   <div className="comment-metadata">
-                                    <span className="username">u/{nestedReply.username}</span>
+                                    <span 
+                                      className="username"
+                                      onMouseEnter={(e) => {
+                                        const rect = e.target.getBoundingClientRect();
+                                        handleShowUserInfo(nestedReply.username, {
+                                          x: rect.left,
+                                          y: rect.bottom + 8
+                                        });
+                                      }}
+                                      onMouseLeave={() => handleShowUserInfo(null)}
+                                    >u/{nestedReply.username}</span>
                                     <span className="karma-dot">•</span>
                                     <span className="karma">{nestedReply.karma} karma</span>
                                     <span className="karma-dot">•</span>

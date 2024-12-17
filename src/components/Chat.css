@@ -121,6 +121,14 @@ body {
 .username {
   color: #ff4500;
   font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.username:hover {
+  background-color: rgba(255, 69, 0, 0.1);
 }
 
 .karma {
