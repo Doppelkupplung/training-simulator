@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Together } from 'together-ai';
 import config from '../config';
 import './Chat.css';
-import ReplyInput from './ReplyInput';
 
 let together = null;
 let initError = null;
@@ -141,9 +140,21 @@ Reasoning: Message discusses gaming strategies
   }
 };
 
+const STORAGE_KEY = 'reddit_simulator_messages';
+
 function Chat({ personas }) {
-  const [messages, setMessages] = useState([
-    {
+  const [messages, setMessages] = useState(() => {
+    // Try to load messages from localStorage on initial render
+    const savedMessages = localStorage.getItem(STORAGE_KEY);
+    if (savedMessages) {
+      try {
+        return JSON.parse(savedMessages);
+      } catch (e) {
+        console.error('Failed to parse saved messages:', e);
+      }
+    }
+    // Fall back to default initial message if no saved messages or parsing fails
+    return [{
       id: 1,
       role: 'assistant',
       content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
@@ -154,12 +165,19 @@ function Chat({ personas }) {
       isReplyOpen: false,
       upvotes: 1,
       downvotes: 0
-    }
-  ]);
-  const [input, setInput] = useState('');
+    }];
+  });
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(initError);
   const messagesEndRef = useRef(null);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
     if (initError) {
@@ -175,12 +193,26 @@ function Chat({ personas }) {
     scrollToBottom();
   }, [messages]);
 
-  const toggleReply = (messageId) => {
-    setMessages(prev => prev.map(msg => 
-      msg.id === messageId 
+  const toggleReply = (messageId, replyId = null) => {
+    setMessages(prev => prev.map(msg => {
+      if (replyId) {
+        // Handle reply to a reply
+        return msg.id === messageId 
+          ? {
+              ...msg,
+              replies: msg.replies.map(reply =>
+                reply.id === replyId
+                  ? { ...reply, isReplyOpen: !reply.isReplyOpen }
+                  : { ...reply, isReplyOpen: false }
+              )
+            }
+          : msg;
+      }
+      // Handle reply to main message
+      return msg.id === messageId 
         ? { ...msg, isReplyOpen: !msg.isReplyOpen }
-        : msg
-    ));
+        : { ...msg, isReplyOpen: false };
+    }));
   };
 
   const handleVote = (messageId, isUpvote, isReply = false, parentId = null) => {
@@ -215,36 +247,7 @@ function Chat({ personas }) {
     });
   };
 
-  const handleReply = async (messageId, replyContent) => {
-    if (!replyContent.trim()) return;
-
-    const newReply = {
-      id: Date.now(),
-      role: 'user',
-      content: replyContent,
-      username: 'You',
-      karma: 1,
-      timestamp: new Date().toISOString(),
-      replies: [],
-      isReplyOpen: false,
-      upvotes: 0,
-      downvotes: 0
-    };
-
-    setMessages(prev => prev.map(msg => 
-      msg.id === messageId 
-        ? { 
-            ...msg, 
-            replies: [...msg.replies, newReply],
-            isReplyOpen: false 
-          }
-        : msg
-    ));
-
-    await generateResponse(replyContent, messageId);
-  };
-
-  const generateResponse = async (userMessage, parentId = null) => {
+  const generateResponse = async (userMessage, parentId = null, replyToReplyId = null) => {
     if (!together) {
       const errorMessage = 'Chat service is not available. Please check your API key configuration.';
       console.error(errorMessage);
@@ -299,33 +302,41 @@ Respond to the conversation in character, maintaining consistency with your prof
 
       let responseContent = '';
 
-      if (!parentId) {
-        // Only create a new main message if this isn't a reply
-        const responseId = messages.length + 2;
-        setMessages(prev => [...prev, {
-          id: responseId,
-          role: 'assistant',
-          content: '',
-          username: respondingPersona.username,
-          karma: respondingPersona.karma,
-          timestamp: new Date().toISOString(),
-          replies: [],
-          isReplyOpen: false,
-          upvotes: 0,
-          downvotes: 0
-        }]);
-
-        // Stream the response for main message
+      if (replyToReplyId) {
+        // For replies to replies, accumulate the content first
         for await (const chunk of stream) {
           const chunkContent = chunk.choices[0]?.delta?.content || '';
           responseContent += chunkContent;
-          setMessages(prev => prev.map(msg => 
-            msg.id === responseId 
-              ? { ...msg, content: msg.content + chunkContent }
-              : msg
-          ));
         }
-      } else {
+
+        // Then add the complete reply to the nested reply
+        setMessages(prev => prev.map(msg =>
+          msg.id === parentId
+            ? {
+                ...msg,
+                replies: msg.replies.map(reply =>
+                  reply.id === replyToReplyId
+                    ? {
+                        ...reply,
+                        replies: [...(reply.replies || []), {
+                          id: Date.now(),
+                          role: 'assistant',
+                          content: responseContent,
+                          username: respondingPersona.username,
+                          karma: respondingPersona.karma,
+                          timestamp: new Date().toISOString(),
+                          upvotes: 0,
+                          downvotes: 0,
+                          replies: [],
+                          isReplyOpen: false
+                        }]
+                      }
+                    : reply
+                )
+              }
+            : msg
+        ));
+      } else if (parentId) {
         // For replies, accumulate the content first
         for await (const chunk of stream) {
           const chunkContent = chunk.choices[0]?.delta?.content || '';
@@ -352,6 +363,32 @@ Respond to the conversation in character, maintaining consistency with your prof
               }
             : msg
         ));
+      } else {
+        // Only create a new main message if this isn't a reply
+        const responseId = messages.length + 2;
+        setMessages(prev => [...prev, {
+          id: responseId,
+          role: 'assistant',
+          content: '',
+          username: respondingPersona.username,
+          karma: respondingPersona.karma,
+          timestamp: new Date().toISOString(),
+          replies: [],
+          isReplyOpen: false,
+          upvotes: 0,
+          downvotes: 0
+        }]);
+
+        // Stream the response for main message
+        for await (const chunk of stream) {
+          const chunkContent = chunk.choices[0]?.delta?.content || '';
+          responseContent += chunkContent;
+          setMessages(prev => prev.map(msg => 
+            msg.id === responseId 
+              ? { ...msg, content: msg.content + chunkContent }
+              : msg
+          ));
+        }
       }
     } catch (error) {
       console.error('Error generating response:', error);
@@ -378,17 +415,93 @@ Respond to the conversation in character, maintaining consistency with your prof
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+  const formatTimestamp = (timestamp) => {
+    const now = new Date();
+    const messageTime = new Date(timestamp);
+    const diffInMinutes = Math.floor((now - messageTime) / 1000 / 60);
 
-    const userMessage = input;
-    setInput('');
+    if (diffInMinutes < 1) return 'just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const handleAddComment = () => {
+    setIsReplying(true);
+  };
+
+  const handleSubmitReply = (messageId, replyId = null) => {
+    if (!replyText.trim() || isStreaming) return;
+
+    const userMessage = replyText;
+    setReplyText('');
     setError(null);
 
-    // Add user message with all required properties
+    setMessages(prev => prev.map(msg => {
+      if (replyId) {
+        // Add reply to a reply
+        return msg.id === messageId
+          ? {
+              ...msg,
+              replies: msg.replies.map(reply =>
+                reply.id === replyId
+                  ? {
+                      ...reply,
+                      replies: [...(reply.replies || []), {
+                        id: Date.now(),
+                        role: 'user',
+                        content: userMessage,
+                        username: 'You',
+                        karma: 1,
+                        timestamp: new Date().toISOString(),
+                        upvotes: 0,
+                        downvotes: 0,
+                        replies: [],
+                        isReplyOpen: false
+                      }],
+                      isReplyOpen: false
+                    }
+                  : reply
+              )
+            }
+          : msg;
+      }
+      // Add reply to main message
+      return msg.id === messageId
+        ? {
+            ...msg,
+            replies: [...msg.replies, {
+              id: Date.now(),
+              role: 'user',
+              content: userMessage,
+              username: 'You',
+              karma: 1,
+              timestamp: new Date().toISOString(),
+              upvotes: 0,
+              downvotes: 0,
+              replies: [],
+              isReplyOpen: false
+            }],
+            isReplyOpen: false
+          }
+        : msg;
+    }));
+
+    // Generate AI response as a reply
+    generateResponse(userMessage, messageId, replyId);
+  };
+
+  const handleSubmitComment = () => {
+    if (!replyText.trim() || isStreaming) return;
+
+    const userMessage = replyText;
+    setReplyText('');
+    setError(null);
+    setIsReplying(false);
+
+    // Add user message
     setMessages(prev => [...prev, {
-      id: prev.length + 1,
+      id: Date.now(),
       role: 'user',
       content: userMessage,
       username: 'You',
@@ -401,18 +514,7 @@ Respond to the conversation in character, maintaining consistency with your prof
     }]);
 
     // Generate AI response
-    await generateResponse(userMessage);
-  };
-
-  const formatTimestamp = (timestamp) => {
-    const now = new Date();
-    const messageTime = new Date(timestamp);
-    const diffInMinutes = Math.floor((now - messageTime) / 1000 / 60);
-
-    if (diffInMinutes < 1) return 'just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+    generateResponse(userMessage);
   };
 
   return (
@@ -431,7 +533,40 @@ Respond to the conversation in character, maintaining consistency with your prof
             <span className="thread-stats">•</span>
             <span className="thread-stats">r/ThreadSimulator</span>
           </div>
+          
+          <div className="add-comment-wrapper">
+            <button 
+              className="add-comment-button"
+              onClick={handleAddComment}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Add a comment
+            </button>
+            
+            {isReplying && (
+              <div className="reply-input-container">
+                <textarea 
+                  placeholder="What are your thoughts?"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  disabled={isStreaming}
+                />
+                <div className="reply-actions">
+                  <button onClick={() => setIsReplying(false)}>Cancel</button>
+                  <button 
+                    onClick={handleSubmitComment}
+                    disabled={!replyText.trim() || isStreaming}
+                  >
+                    Comment
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+        
         <div className="chat-messages">
           {messages.map((message) => (
             <div key={message.id} className={`reddit-comment ${message.role}`}>
@@ -484,10 +619,21 @@ Respond to the conversation in character, maintaining consistency with your prof
 
               {message.isReplyOpen && (
                 <div className="reply-form">
-                  <ReplyInput 
-                    onSubmit={(content) => handleReply(message.id, content)}
-                    isStreaming={isStreaming}
+                  <textarea 
+                    placeholder="What are your thoughts?"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    disabled={isStreaming}
                   />
+                  <div className="reply-actions">
+                    <button onClick={() => toggleReply(message.id)}>Cancel</button>
+                    <button 
+                      onClick={() => handleSubmitReply(message.id)}
+                      disabled={!replyText.trim() || isStreaming}
+                    >
+                      Reply
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -529,10 +675,77 @@ Respond to the conversation in character, maintaining consistency with your prof
                         >
                           <span className="arrow-down">▼</span> {reply.downvotes}
                         </button>
-                        <button className="action-button">Reply</button>
+                        <button 
+                          className="action-button"
+                          onClick={() => toggleReply(message.id, reply.id)}
+                        >
+                          Reply
+                        </button>
                         <button className="action-button">Share</button>
                         <button className="action-button">Report</button>
                       </div>
+
+                      {reply.isReplyOpen && (
+                        <div className="reply-form">
+                          <textarea 
+                            placeholder="What are your thoughts?"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            disabled={isStreaming}
+                          />
+                          <div className="reply-actions">
+                            <button onClick={() => toggleReply(message.id, reply.id)}>Cancel</button>
+                            <button 
+                              onClick={() => handleSubmitReply(message.id, reply.id)}
+                              disabled={!replyText.trim() || isStreaming}
+                            >
+                              Reply
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Render nested replies */}
+                      {reply.replies && reply.replies.length > 0 && (
+                        <div className="nested-replies">
+                          {reply.replies.map(nestedReply => (
+                            <div key={nestedReply.id} className={`reddit-comment ${nestedReply.role}`}>
+                              <div className="comment-header">
+                                <div className="comment-user-info">
+                                  {nestedReply.role === 'assistant' && (
+                                    <img 
+                                      src={personas.find(p => p.username === nestedReply.username)?.imageUrl || '/default-avatar.png'} 
+                                      alt={`${nestedReply.username}'s avatar`}
+                                      className="comment-avatar"
+                                    />
+                                  )}
+                                  <div className="comment-metadata">
+                                    <span className="username">u/{nestedReply.username}</span>
+                                    <span className="karma-dot">•</span>
+                                    <span className="karma">{nestedReply.karma} karma</span>
+                                    <span className="karma-dot">•</span>
+                                    <span className="timestamp">{formatTimestamp(nestedReply.timestamp)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="comment-content">
+                                {nestedReply.content}
+                              </div>
+                              <div className="comment-actions">
+                                <button className="action-button">
+                                  <span className="arrow-up">▲</span> {nestedReply.upvotes}
+                                </button>
+                                <button className="action-button">
+                                  <span className="arrow-down">▼</span> {nestedReply.downvotes}
+                                </button>
+                                <button className="action-button">Reply</button>
+                                <button className="action-button">Share</button>
+                                <button className="action-button">Report</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -552,25 +765,6 @@ Respond to the conversation in character, maintaining consistency with your prof
           )}
           <div ref={messagesEndRef} />
         </div>
-        <form className="chat-input-form" onSubmit={handleSubmit}>
-          <div className="chat-input-container">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={isStreaming ? "Waiting for response..." : "What are your thoughts?"}
-              className="chat-input"
-              disabled={isStreaming || !together}
-            />
-            <button 
-              type="submit" 
-              className={`chat-submit ${(isStreaming || !together) ? 'disabled' : ''}`}
-              disabled={isStreaming || !together}
-            >
-              Comment
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
