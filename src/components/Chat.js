@@ -612,7 +612,7 @@ Personality: ${selectedPersona.personality}
 Interests: ${selectedPersona.interests}
 Writing Style: ${selectedPersona.writingStyle}
 
-Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise`;
+Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise.`;
       
       // Use the already built message history for the chat context
       const chatMessages = messageHistory.map(msg => ({ 
