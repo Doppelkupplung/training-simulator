@@ -3,7 +3,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem;
-  background-color: #25262b;
+  background-color: #0E1113;
+  border-bottom: 1px solid #1a1b1e;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   height: 64px;
   position: fixed;
@@ -31,7 +32,7 @@
 .navbar-brand h1 {
   margin: 0;
   font-size: 1.5rem;
-  color: #e4e5e7;
+  color: #FF4500;
   font-weight: 600;
 }
 
@@ -42,7 +43,7 @@
 
 .navbar-links a {
   text-decoration: none;
-  color: #a6a7ab;
+  color: #e4e5e7;
   font-weight: 500;
   transition: all 0.3s ease;
   font-size: 0.95rem;
@@ -51,6 +52,6 @@
 }
 
 .navbar-links a:hover {
-  color: #ff4500;
+  color: #FF4500;
   background-color: rgba(255, 69, 0, 0.1);
 } 

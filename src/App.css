@@ -10,13 +10,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
-  background-color: #1a1b1e;
+  background-color: #0E1113;
   color: #e4e5e7;
 }
 
 .App {
+  background-color: #0E1113;
   min-height: 100vh;
-  background-color: #1a1b1e;
   padding-top: 20px;
 }
 
@@ -75,4 +75,13 @@ button {
 
 .error {
   color: #ff6b6b;
+}
+
+.container {
+  background-color: #0E1113;
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+  max-width: 1200px;
 }
