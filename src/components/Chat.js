@@ -18,6 +18,129 @@ try {
   initError = error.message;
 }
 
+const selectBestPersona = async (userMessage, personas) => {
+  if (!personas || personas.length === 0) {
+    return {
+      username: 'DefaultRedditor',
+      karma: 100,
+      personality: 'Helpful and friendly',
+      interests: 'General discussion',
+      writingStyle: 'Casual and informative'
+    };
+  }
+
+  try {
+    // Create a prompt that asks the LLM to analyze the message and select the best persona
+    const analysisPrompt = `You are a topic matcher. Your task is to analyze a message and select the Reddit user whose interests and expertise best match the message's subject matter. Ignore personality traits and writing style - focus ONLY on matching the topic with the user's interests and expertise.
+
+Message to analyze: "${userMessage}"
+
+Available personas:
+${personas.map((p, i) => `
+${i + 1}. Username: ${p.username}
+   Interests & Expertise: ${p.interests}`).join('\n')}
+
+Instructions:
+1. Identify the main topic(s) and subject matter in the message
+2. Compare these topics ONLY with each persona's interests and expertise
+3. Select the persona whose interests best match the message topic
+4. Explain which specific topics matched
+
+Format your response EXACTLY like this:
+Topic: [topic from message]
+Matches: [list matching interests]
+Reasoning: [1-2 sentences explaining match]
+
+Selected: [number]
+
+End your response with ONLY the number on the last line, like this example:
+Topic: Gaming
+Matches: Video games, esports
+Reasoning: Message discusses gaming strategies
+
+2`;
+
+    const response = await together.chat.completions.create({
+      model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a topic matcher that selects the most relevant persona based solely on matching message topics with user interests.'
+        },
+        {
+          role: 'user',
+          content: analysisPrompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 300,
+    });
+
+    const fullResponse = response.choices[0].message.content;
+    
+    // Debug the full selection process
+    console.log('\n=== FULL PERSONA SELECTION DEBUG ===');
+    console.log('User Message:', userMessage);
+    console.log('Available Personas:', personas.map((p, i) => ({
+      index: i + 1,
+      username: p.username,
+      interests: p.interests
+    })));
+    console.log('\nLLM Response:', fullResponse);
+    
+    // Extract the last line and parse the index
+    const lines = fullResponse.split('\n').filter(line => line.trim());
+    console.log('\nParsing Process:');
+    console.log('All non-empty lines:', JSON.stringify(lines, null, 2));
+    
+    // First try to find a standalone number at the end
+    const lastLine = lines[lines.length - 1].trim();
+    let selectedIndex = -1;
+    
+    // Check if the last line is just a number
+    if (/^\d+$/.test(lastLine)) {
+        selectedIndex = parseInt(lastLine) - 1;
+        console.log('\nFound clean number at end:', lastLine);
+    } else {
+        // If not, look for a line starting with "Selected: " followed by a number
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i].trim();
+            const selectedMatch = line.match(/^(?:Selected:\s*)?(\d+)$/);
+            if (selectedMatch) {
+                selectedIndex = parseInt(selectedMatch[1]) - 1;
+                console.log('\nFound number in "Selected:" line:', selectedMatch[1]);
+                break;
+            }
+        }
+    }
+    
+    console.log('\nSelection Results:');
+    console.log('Final selected index:', selectedIndex);
+    console.log('Valid index range: 0 to', personas.length - 1);
+    
+    // Return the selected persona or fall back to first persona if parsing fails
+    if (selectedIndex >= 0 && selectedIndex < personas.length) {
+      const selectedPersona = personas[selectedIndex];
+      console.log('\nSUCCESS: Selected persona', selectedIndex + 1, ':', selectedPersona.username);
+      console.log('=================================\n');
+      return selectedPersona;
+    } else {
+      console.warn('\nFAILED to select valid persona:');
+      console.warn('- Last line found:', lastLine);
+      console.warn('- Parsed index:', selectedIndex);
+      console.warn('- Valid range:', 0, 'to', personas.length - 1);
+      console.warn('Falling back to first persona:', personas[0].username);
+      console.log('=================================\n');
+      return personas[0];
+    }
+
+  } catch (error) {
+    console.error('Error selecting persona:', error);
+    // Fallback to first persona if there's an error
+    return personas[0];
+  }
+};
+
 function Chat({ personas }) {
   const [messages, setMessages] = useState([
     {
@@ -49,19 +172,6 @@ function Chat({ personas }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const getRandomPersona = () => {
-    if (!personas || personas.length === 0) {
-      return {
-        username: 'DefaultRedditor',
-        karma: 100,
-        personality: 'Helpful and friendly',
-        interests: 'General discussion',
-        writingStyle: 'Casual and informative'
-      };
-    }
-    return personas[Math.floor(Math.random() * personas.length)];
-  };
 
   const toggleReply = (messageId) => {
     setMessages(prev => prev.map(msg => 
@@ -110,8 +220,21 @@ function Chat({ personas }) {
       setIsStreaming(true);
       setError(null);
       
-      const respondingPersona = getRandomPersona();
-      console.log('Selected persona:', respondingPersona);
+      // Log available personas
+      console.log('Available personas:', personas.map(p => `\n${p.username} (${p.interests})`).join(''));
+      
+      // Wait for the persona selection
+      const respondingPersona = await selectBestPersona(userMessage, personas);
+      console.log('\n=== Persona Selection Results ===');
+      console.log('User Message:', userMessage);
+      console.log('Selected Persona:', {
+        username: respondingPersona.username,
+        karma: respondingPersona.karma,
+        personality: respondingPersona.personality,
+        interests: respondingPersona.interests,
+        writingStyle: respondingPersona.writingStyle
+      });
+      console.log('===============================\n');
 
       const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
 Username: ${respondingPersona.username}
@@ -197,13 +320,12 @@ Respond to the conversation in character, maintaining consistency with your prof
       
       if (!parentId) {
         // Only add error message to main thread if it's not a reply
-        const defaultPersona = getRandomPersona();
         setMessages(prev => [...prev, {
           id: messages.length + 2,
           role: 'assistant',
           content: 'I apologize, but I encountered an error. Please try again.',
-          username: defaultPersona.username,
-          karma: defaultPersona.karma,
+          username: 'AutoModerator',
+          karma: 1000000,
           timestamp: new Date().toISOString(),
           replies: [],
           isReplyOpen: false
