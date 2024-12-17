@@ -9,26 +9,36 @@
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: 1rem;
 }
 
 .modal-content {
   background-color: #25262b;
-  padding: 2rem;
   border-radius: 8px;
   width: 100%;
   max-width: 500px;
+  max-height: 90vh;
   position: relative;
   color: #e4e5e7;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
-  margin-bottom: 1.5rem;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #2c2d32;
+  position: sticky;
+  top: 0;
+  background-color: #25262b;
+  border-radius: 8px 8px 0 0;
+  z-index: 1;
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.5rem;
   color: #e4e5e7;
+  padding-right: 2rem;
 }
 
 .modal-close {
@@ -49,6 +59,12 @@
 
 .modal-close:hover {
   color: #e4e5e7;
+}
+
+form {
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: calc(90vh - 70px); /* 70px is approx header height */
 }
 
 .form-group {
@@ -74,7 +90,7 @@
 
 .form-group input:focus, .form-group textarea:focus {
   outline: none;
-  border-color: #5c7cfa;
+  border-color: #ff4500;
 }
 
 .form-group textarea {
@@ -87,6 +103,12 @@
   justify-content: flex-end;
   gap: 1rem;
   margin-top: 2rem;
+  padding: 1.5rem 2rem;
+  background-color: #25262b;
+  border-top: 1px solid #2c2d32;
+  border-radius: 0 0 8px 8px;
+  position: sticky;
+  bottom: 0;
 }
 
 .modal-actions button {
@@ -108,10 +130,10 @@
 }
 
 .modal-actions .submit {
-  background-color: #5c7cfa;
+  background-color: #ff4500;
   color: white;
 }
 
 .modal-actions .submit:hover {
-  background-color: #4c6ef5;
+  background-color: #ff5414;
 } 

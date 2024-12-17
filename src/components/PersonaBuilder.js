@@ -6,30 +6,46 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPersona, setEditingPersona] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    age: '',
-    personality: ''
+    username: '',
+    karma: '',
+    personality: '',
+    interests: '',
+    writingStyle: ''
   });
 
   const handleAddPersona = () => {
     setEditingPersona(null);
-    setFormData({ name: '', age: '', personality: '' });
+    setFormData({
+      username: '',
+      karma: '',
+      personality: '',
+      interests: '',
+      writingStyle: ''
+    });
     setIsModalOpen(true);
   };
 
   const handleEditPersona = (persona) => {
     setEditingPersona(persona);
     setFormData({
-      name: persona.name,
-      age: persona.age,
-      personality: persona.personality
+      username: persona.username,
+      karma: persona.karma,
+      personality: persona.personality,
+      interests: persona.interests,
+      writingStyle: persona.writingStyle
     });
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setFormData({ name: '', age: '', personality: '' });
+    setFormData({
+      username: '',
+      karma: '',
+      personality: '',
+      interests: '',
+      writingStyle: ''
+    });
     setEditingPersona(null);
   };
 
@@ -46,7 +62,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     
     const personaData = {
       ...formData,
-      age: parseInt(formData.age, 10)
+      karma: parseInt(formData.karma, 10)
     };
 
     if (editingPersona) {
@@ -58,7 +74,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   };
 
   const handleDelete = (persona) => {
-    if (window.confirm(`Are you sure you want to delete ${persona.name}?`)) {
+    if (window.confirm(`Are you sure you want to delete u/${persona.username}?`)) {
       onDeletePersona(persona.id);
     }
   };
@@ -66,23 +82,25 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   return (
     <div className="persona-builder">
       <div className="persona-header">
-        <h2>Persona Builder</h2>
+        <h2>Reddit User Simulator</h2>
         <button className="add-persona-button" onClick={handleAddPersona}>
-          Add Persona
+          Add Reddit User
         </button>
       </div>
       <div className="personas-list">
         {personas.length === 0 ? (
           <div className="empty-state">
-            <p>No personas created yet. Click "Add Persona" to get started.</p>
+            <p>No Reddit users created yet. Click "Add Reddit User" to get started.</p>
           </div>
         ) : (
           personas.map((persona) => (
             <div key={persona.id} className="persona-card">
               <div className="persona-content">
-                <h3>{persona.name}</h3>
-                <p>Age: {persona.age}</p>
-                <p>Personality: {persona.personality}</p>
+                <h3>u/{persona.username}</h3>
+                <p className="karma">Karma: {persona.karma}</p>
+                <p><strong>Personality:</strong> {persona.personality}</p>
+                <p><strong>Interests:</strong> {persona.interests}</p>
+                <p><strong>Writing Style:</strong> {persona.writingStyle}</p>
               </div>
               <div className="persona-actions">
                 <button 
@@ -106,40 +124,68 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title={editingPersona ? "Edit Persona" : "Add New Persona"}
+        title={editingPersona ? "Edit Reddit User" : "Add New Reddit User"}
       >
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="name">Name</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              required
-            />
+            <label htmlFor="username">Username</label>
+            <div className="username-input">
+              <span className="username-prefix">u/</span>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                value={formData.username}
+                onChange={handleInputChange}
+                required
+                placeholder="username"
+              />
+            </div>
           </div>
           <div className="form-group">
-            <label htmlFor="age">Age</label>
+            <label htmlFor="karma">Karma Points</label>
             <input
               type="number"
-              id="age"
-              name="age"
-              value={formData.age}
+              id="karma"
+              name="karma"
+              value={formData.karma}
               onChange={handleInputChange}
               required
               min="0"
+              placeholder="e.g., 1000"
             />
           </div>
           <div className="form-group">
-            <label htmlFor="personality">Personality</label>
+            <label htmlFor="personality">Personality Traits</label>
             <textarea
               id="personality"
               name="personality"
               value={formData.personality}
               onChange={handleInputChange}
               required
+              placeholder="e.g., Sarcastic, witty, tends to play devil's advocate"
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="interests">Interests & Expertise</label>
+            <textarea
+              id="interests"
+              name="interests"
+              value={formData.interests}
+              onChange={handleInputChange}
+              required
+              placeholder="e.g., Gaming, programming, cryptocurrency, memes"
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="writingStyle">Writing Style</label>
+            <textarea
+              id="writingStyle"
+              name="writingStyle"
+              value={formData.writingStyle}
+              onChange={handleInputChange}
+              required
+              placeholder="e.g., Uses lots of emojis, writes in short sentences, frequently uses Reddit slang"
             />
           </div>
           <div className="modal-actions">
@@ -147,7 +193,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
               Cancel
             </button>
             <button type="submit" className="submit">
-              {editingPersona ? "Save Changes" : "Create Persona"}
+              {editingPersona ? "Save Changes" : "Create User"}
             </button>
           </div>
         </form>

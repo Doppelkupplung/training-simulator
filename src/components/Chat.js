@@ -17,13 +17,15 @@ try {
   initError = error.message;
 }
 
-function Chat() {
-  console.log('Chat component rendering');
+function Chat({ personas }) {
   const [messages, setMessages] = useState([
     {
       id: 1,
       role: 'assistant',
-      content: 'Hello! I am your virtual customer. How can I help you practice your customer service skills today?'
+      content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
+      username: 'AutoModerator',
+      karma: 1000000,
+      timestamp: new Date().toISOString()
     }
   ]);
   const [input, setInput] = useState('');
@@ -32,7 +34,6 @@ function Chat() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    // Set initial error if Together AI failed to initialize
     if (initError) {
       setError(initError);
     }
@@ -46,6 +47,19 @@ function Chat() {
     scrollToBottom();
   }, [messages]);
 
+  const getRandomPersona = () => {
+    if (!personas || personas.length === 0) {
+      return {
+        username: 'DefaultRedditor',
+        karma: 100,
+        personality: 'Helpful and friendly',
+        interests: 'General discussion',
+        writingStyle: 'Casual and informative'
+      };
+    }
+    return personas[Math.floor(Math.random() * personas.length)];
+  };
+
   const generateResponse = async (userMessage) => {
     if (!together) {
       const errorMessage = 'Chat service is not available. Please check your API key configuration.';
@@ -58,13 +72,25 @@ function Chat() {
       setIsStreaming(true);
       setError(null);
       
+      const respondingPersona = getRandomPersona();
+      console.log('Selected persona:', respondingPersona);
+
+      const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
+Username: ${respondingPersona.username}
+Karma: ${respondingPersona.karma}
+Personality: ${respondingPersona.personality}
+Interests: ${respondingPersona.interests}
+Writing Style: ${respondingPersona.writingStyle}
+
+Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise.`;
+      
       console.log('Generating response for:', userMessage);
       const stream = await together.chat.completions.create({
         model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
         messages: [
           {
             role: 'system',
-            content: 'You are a virtual customer helping customer service representatives practice their skills. Respond as a customer would, with realistic concerns, questions, and reactions.'
+            content: systemPrompt
           },
           ...messages.map(m => ({ role: m.role, content: m.content })),
           { role: 'user', content: userMessage }
@@ -79,7 +105,10 @@ function Chat() {
       setMessages(prev => [...prev, {
         id: responseId,
         role: 'assistant',
-        content: ''
+        content: '',
+        username: respondingPersona.username,
+        karma: respondingPersona.karma,
+        timestamp: new Date().toISOString()
       }]);
 
       // Stream the response
@@ -95,10 +124,14 @@ function Chat() {
       console.error('Error generating response:', error);
       const errorMessage = error.message || 'Failed to generate response. Please try again.';
       setError(errorMessage);
+      const defaultPersona = getRandomPersona();
       setMessages(prev => [...prev, {
         id: messages.length + 2,
         role: 'assistant',
-        content: 'I apologize, but I encountered an error. Please try again.'
+        content: 'I apologize, but I encountered an error. Please try again.',
+        username: defaultPersona.username,
+        karma: defaultPersona.karma,
+        timestamp: new Date().toISOString()
       }]);
     } finally {
       setIsStreaming(false);
@@ -117,26 +150,63 @@ function Chat() {
     setMessages(prev => [...prev, {
       id: prev.length + 1,
       role: 'user',
-      content: userMessage
+      content: userMessage,
+      username: 'You',
+      karma: 1,
+      timestamp: new Date().toISOString()
     }]);
 
     // Generate AI response
     await generateResponse(userMessage);
   };
 
+  const formatTimestamp = (timestamp) => {
+    const now = new Date();
+    const messageTime = new Date(timestamp);
+    const diffInMinutes = Math.floor((now - messageTime) / 1000 / 60);
+
+    if (diffInMinutes < 1) return 'just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
   return (
     <div className="chat-container">
+      <div className="thread-title">
+        <h2>Reddit Thread Simulator</h2>
+        <div className="thread-info">
+          <span className="thread-stats">100% Upvoted</span>
+          <span className="thread-stats">•</span>
+          <span className="thread-stats">r/ThreadSimulator</span>
+        </div>
+      </div>
       <div className="chat-messages">
         {messages.map((message) => (
-          <div key={message.id} className={`message ${message.role}`}>
-            <div className="message-icon">
-              {message.role === 'assistant' ? '👤' : '💬'}
+          <div key={message.id} className={`reddit-comment ${message.role}`}>
+            <div className="comment-metadata">
+              <span className="username">u/{message.username}</span>
+              <span className="karma-dot">•</span>
+              <span className="karma">{message.karma} karma</span>
+              <span className="karma-dot">•</span>
+              <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
             </div>
-            <div className="message-content">
+            <div className="comment-content">
               {message.content}
               {message.id === messages.length && isStreaming && (
                 <span className="typing-indicator">▊</span>
               )}
+            </div>
+            <div className="comment-actions">
+              <button className="action-button">
+                <span className="arrow-up">▲</span> Upvote
+              </button>
+              <button className="action-button">
+                <span className="arrow-down">▼</span> Downvote
+              </button>
+              <button className="action-button">Reply</button>
+              <button className="action-button">Share</button>
+              <button className="action-button">Report</button>
             </div>
           </div>
         ))}
@@ -159,7 +229,7 @@ function Chat() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? "Waiting for response..." : "Type your message here..."}
+            placeholder={isStreaming ? "Waiting for response..." : "What are your thoughts?"}
             className="chat-input"
             disabled={isStreaming || !together}
           />
@@ -168,7 +238,7 @@ function Chat() {
             className={`chat-submit ${(isStreaming || !together) ? 'disabled' : ''}`}
             disabled={isStreaming || !together}
           >
-            Send
+            Comment
           </button>
         </div>
       </form>

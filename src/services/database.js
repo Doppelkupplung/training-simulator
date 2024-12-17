@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
-const DB_NAME = 'personaDB';
-const STORE_NAME = 'personas';
+const DB_NAME = 'redditUserDB';
+const STORE_NAME = 'redditUsers';
 const VERSION = 1;
 
 async function initDB() {
@@ -16,7 +16,8 @@ async function initDB() {
       });
       
       // Create indexes
-      store.createIndex('name', 'name', { unique: false });
+      store.createIndex('username', 'username', { unique: true });
+      store.createIndex('karma', 'karma', { unique: false });
       store.createIndex('created_at', 'created_at', { unique: false });
     },
   });
@@ -30,8 +31,8 @@ const dbService = {
     const db = await dbPromise;
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
-    const personas = await store.index('created_at').getAll();
-    return personas.reverse(); // newest first
+    const users = await store.index('created_at').getAll();
+    return users.reverse(); // newest first
   },
 
   async getPersonaById(id) {
@@ -47,16 +48,16 @@ const dbService = {
     const store = tx.objectStore(STORE_NAME);
     
     const timestamp = new Date().toISOString();
-    const personaToAdd = {
+    const userToAdd = {
       ...persona,
       created_at: timestamp,
       updated_at: timestamp
     };
     
-    const id = await store.add(personaToAdd);
+    const id = await store.add(userToAdd);
     await tx.done;
     
-    return { ...personaToAdd, id };
+    return { ...userToAdd, id };
   },
 
   async updatePersona(persona) {
@@ -67,13 +68,13 @@ const dbService = {
     const existing = await store.get(persona.id);
     if (!existing) return false;
     
-    const updatedPersona = {
+    const updatedUser = {
       ...persona,
       created_at: existing.created_at,
       updated_at: new Date().toISOString()
     };
     
-    await store.put(updatedPersona);
+    await store.put(updatedUser);
     await tx.done;
     return true;
   },
