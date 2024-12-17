@@ -407,8 +407,14 @@ function Chat({ personas }) {
       return;
     }
 
+    console.log('\n=== Random Reply Generation Debug ===');
+    console.log('Current AI Response Count:', aiResponseCount);
+    console.log('Message ID:', messageId);
+    console.log('Parent ID:', parentId);
+
     // Check nesting level before proceeding
     const currentNestLevel = getNestingLevel(parentId, messageId);
+    console.log('Current Nesting Level:', currentNestLevel);
     
     // Find the message that was just replied to
     const parentMessage = parentId 
@@ -459,15 +465,37 @@ function Chat({ personas }) {
         targetMessageId = messageId;
         targetParentId = parentId;
       }
+
+      console.log('Last Responder:', lastResponderUsername);
+      console.log('Immediate Parent:', immediateParentUsername);
       
-      // Filter out both the last responder and the immediate parent from available personas
+      // Filter out only the last responder to prevent self-replies but allow conversation
       const availablePersonas = personas.filter(p => 
-        p.username !== lastResponderUsername && 
-        p.username !== immediateParentUsername
+        p.username !== lastResponderUsername && // Don't allow same persona to reply to itself
+        p.username !== 'AutoModerator' && // Don't include AutoModerator in random replies
+        p.username !== 'You' // Don't include user in random replies
       );
+
+      // Get all usernames in the current reply thread to prevent any self-replies in the chain
+      const replyThreadUsernames = new Set();
+      if (parentMessage) {
+        // Only add the most recent responder to prevent self-replies
+        if (lastResponderUsername) {
+          replyThreadUsernames.add(lastResponderUsername);
+        }
+      }
+
+      // Filter out only personas that were the most recent responder
+      const filteredPersonas = availablePersonas.filter(p => !replyThreadUsernames.has(p.username));
+
+      console.log('Reply Thread Last Responder:', Array.from(replyThreadUsernames));
+      console.log('Available Personas for Reply:', filteredPersonas.map(p => p.username));
       
       // 70% chance to generate a reply if we have available personas
-      if (availablePersonas.length > 0 && Math.random() < 0.7) {
+      const shouldReply = Math.random() < 0.7;
+      console.log('Should Generate Reply:', shouldReply);
+      
+      if (filteredPersonas.length > 0 && shouldReply) {
         // Wait a random time between 2-5 seconds before starting the reply
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
         
@@ -482,8 +510,12 @@ function Chat({ personas }) {
           // This is a direct reply to the message
           generateResponse(replyPrompt, targetMessageId, null, true, aiResponseCount + 1);
         }
+      } else {
+        console.log('Skipping reply generation:', 
+          filteredPersonas.length === 0 ? 'No available personas' : 'Random chance prevented reply');
       }
     }
+    console.log('===============================\n');
   };
 
   const generateResponse = async (userMessage, parentId = null, replyToReplyId = null, isRandomReply = false, aiResponseCount = 1) => {
@@ -517,18 +549,26 @@ function Chat({ personas }) {
       
       // Build message history based on the context
       let messageHistory = [];
+      let lastResponderUsername = null;
+      let immediateParentUsername = null;
+
       if (replyToReplyId) {
         // Find the parent message and its reply chain
         const parentMessage = messages.find(m => m.id === parentId);
         if (parentMessage) {
           messageHistory.push(parentMessage);
+          immediateParentUsername = parentMessage.username;
           const reply = parentMessage.replies.find(r => r.id === replyToReplyId);
           if (reply) {
             messageHistory.push(reply);
+            lastResponderUsername = reply.username;
             // Add any nested replies
-            reply.replies?.forEach(nestedReply => {
-              messageHistory.push(nestedReply);
-            });
+            if (reply.replies && reply.replies.length > 0) {
+              reply.replies.forEach(nestedReply => {
+                messageHistory.push(nestedReply);
+                lastResponderUsername = nestedReply.username; // Update to the most recent responder
+              });
+            }
           }
         }
       } else if (parentId) {
@@ -536,28 +576,48 @@ function Chat({ personas }) {
         const parentMessage = messages.find(m => m.id === parentId);
         if (parentMessage) {
           messageHistory.push(parentMessage);
-          parentMessage.replies.forEach(reply => {
-            messageHistory.push(reply);
-          });
+          immediateParentUsername = parentMessage.username;
+          if (parentMessage.replies.length > 0) {
+            parentMessage.replies.forEach(reply => {
+              messageHistory.push(reply);
+              lastResponderUsername = reply.username; // Update to the most recent responder
+            });
+          } else {
+            lastResponderUsername = parentMessage.username;
+          }
         }
       } else {
         // Use last few messages for context in main thread
         messageHistory = messages.slice(-3);
+        if (messageHistory.length > 0) {
+          lastResponderUsername = messageHistory[messageHistory.length - 1].username;
+        }
       }
 
+      console.log('\n=== Response Generation Debug ===');
+      console.log('Last Responder:', lastResponderUsername);
+      console.log('Immediate Parent:', immediateParentUsername);
+      console.log('Message History:', messageHistory.map(m => `${m.username}: ${m.content}`));
+
+      // Filter available personas to only exclude the last responder
+      const availablePersonas = personas.filter(p => 
+        p.username !== lastResponderUsername && // Don't allow same persona to reply to itself
+        p.username !== 'AutoModerator' && // Don't include AutoModerator in random replies
+        p.username !== 'You' // Don't include user in random replies
+      );
+
+      console.log('Available Personas:', availablePersonas.map(p => p.username));
+
       // First try to select a persona based on conversation continuity
-      const result = await selectBestPersona(userMessage, personas, messageHistory);
+      const result = await selectBestPersona(userMessage, availablePersonas, messageHistory);
       if (!result) {
         console.log('No persona selected');
         return;
       }
 
       const { persona: selectedPersona, analysis } = result;
-      console.log('Conversation Analysis:', analysis);
-
-      // Get the usernames for checking self-replies
-      const lastResponderUsername = messageHistory.length > 0 ? messageHistory[messageHistory.length - 1].username : null;
-      const immediateParentUsername = messageHistory.length > 0 ? messageHistory[0].username : null;
+      console.log('Selected Persona:', selectedPersona.username);
+      console.log('===============================\n');
 
       // If this is a direct mention or conversation continuation, always use the selected persona
       if (analysis.directMention || analysis.isConversationContinuation) {
@@ -835,8 +895,8 @@ Respond to the conversation in character, maintaining consistency with your prof
         : msg;
     }));
 
-    // Generate AI response as a reply
-    generateResponse(userMessage, messageId, replyId);
+    // Generate AI response as a reply starting with aiResponseCount of 0 since this is user-initiated
+    generateResponse(userMessage, messageId, replyId, false, 0);
   };
 
   const handleSubmitComment = () => {
@@ -862,15 +922,15 @@ Respond to the conversation in character, maintaining consistency with your prof
       downvotes: 0
     }]);
 
-    // Try to generate an initial response
+    // Try to generate an initial response with aiResponseCount starting at 0
     const tryGenerateInitialResponse = async () => {
       // 50% chance for initial response
       if (Math.random() < 0.5) {
-        await generateResponse(userMessage, null, null, false);
+        await generateResponse(userMessage, null, null, false, 0);
       } else {
         // If we skip the initial response, try to get a response from a different persona after a delay
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
-        await generateResponse(userMessage, null, null, true);
+        await generateResponse(userMessage, null, null, true, 0);
       }
     };
 
