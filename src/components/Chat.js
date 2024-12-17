@@ -17,17 +17,46 @@ try {
   initError = error.message;
 }
 
-const selectBestPersona = async (userMessage, availablePersonas) => {
+const selectBestPersona = async (userMessage, availablePersonas, messageHistory = []) => {
   if (!availablePersonas || availablePersonas.length === 0) {
     console.log('No available personas to select from');
     return null;
   }
 
   try {
-    // Create a prompt that asks the LLM to analyze the message and select the best persona
-    const analysisPrompt = `You are a topic matcher. Your task is to analyze a message and select the Reddit user whose interests and expertise best match the message's subject matter. Ignore personality traits and writing style - focus ONLY on matching the topic with the user's interests and expertise.
+    // First check for direct mentions of usernames in the message
+    for (const persona of availablePersonas) {
+      const usernamePattern = new RegExp(`@?u/${persona.username}\\b|@${persona.username}\\b`, 'i');
+      if (usernamePattern.test(userMessage)) {
+        console.log(`Found direct mention of ${persona.username}`);
+        return {
+          persona,
+          analysis: {
+            isConversationContinuation: true,
+            previousSpeaker: persona.username,
+            directMention: true
+          }
+        };
+      }
+    }
 
-Message to analyze: "${userMessage}"
+    // Format the recent message history for the LLM
+    const recentMessages = messageHistory
+      .slice(-3) // Get last 3 messages for context
+      .map(msg => `u/${msg.username}: ${msg.content}`)
+      .join('\n');
+
+    // Create a prompt that asks the LLM to analyze the message and select the best persona
+    const analysisPrompt = `You are a conversation analyzer. Your task is to analyze a message and select the most appropriate Reddit user to respond based on the following criteria in order:
+
+1. Direct mentions (already checked by code)
+2. Conversation continuity - check if the message is continuing a discussion that one of the personas was involved in
+3. Interest matching - if no conversation is being continued, select based on matching interests
+
+Recent conversation:
+${recentMessages}
+
+New message to analyze: "${userMessage}"
 
 Available personas:
 ${availablePersonas.map((p, i) => `
@@ -35,22 +64,24 @@ ${i + 1}. Username: ${p.username}
    Interests & Expertise: ${p.interests}`).join('\n')}
 
 Instructions:
-1. Identify the main topic(s) and subject matter in the message
-2. Compare these topics ONLY with each persona's interests and expertise
-3. Select the persona whose interests best match the message topic
-4. Explain which specific topics matched
+1. First, identify if this message is continuing a previous conversation or topic with a specific persona
+2. If it is continuing a conversation, select that persona if available
+3. If it's a new topic, compare the message topics with each persona's interests and expertise
+4. Explain your selection reasoning
 
 Format your response EXACTLY like this:
+Conversation Analysis: [Is this continuing a previous discussion? Yes/No]
+Previous Speaker: [username of the persona this is responding to, if any]
 Topic: [topic from message]
-Matches: [list matching interests]
-Reasoning: [1-2 sentences explaining match]
-
-Selected: [number]
+Selected Persona: [number]
+Reasoning: [2-3 sentences explaining why this persona was selected]
 
 End your response with ONLY the number on the last line, like this example:
-Topic: Gaming
-Matches: Video games, esports
-Reasoning: Message discusses gaming strategies
+Conversation Analysis: Yes
+Previous Speaker: u/TechGamer404
+Topic: Gaming strategies in Minecraft
+Selected Persona: 2
+Reasoning: This message is directly responding to TechGamer404's previous comment about Minecraft building techniques.
 
 2`;
 
@@ -59,15 +90,13 @@ Reasoning: Message discusses gaming strategies
       messages: [
         {
           role: 'system',
-          content: 'You are a topic matcher that selects the most relevant persona based solely on matching message topics with user interests.'
+          content: 'You are a conversation analyzer that selects the most relevant persona based on conversation continuity first, then interest matching.'
         },
         {
           role: 'user',
           content: analysisPrompt
         }
       ],
-      temperature: 0.3,
-      max_tokens: 300,
     });
 
     const fullResponse = response.choices[0].message.content;
@@ -87,52 +116,125 @@ Reasoning: Message discusses gaming strategies
     console.log('\nParsing Process:');
     console.log('All non-empty lines:', JSON.stringify(lines, null, 2));
     
-    // First try to find a standalone number at the end
-    const lastLine = lines[lines.length - 1].trim();
+    // Parse conversation analysis
+    const isConversationContinuation = lines.some(line => 
+      line.startsWith('Conversation Analysis:') && 
+      line.toLowerCase().includes('yes')
+    );
+    const previousSpeakerMatch = lines.find(line => 
+      line.startsWith('Previous Speaker:')
+    );
+    const previousSpeaker = previousSpeakerMatch ? 
+      previousSpeakerMatch.split(':')[1].trim().replace('u/', '') : 
+      null;
+    
+    // Find the selected persona number using multiple methods
     let selectedIndex = -1;
     
-    // Check if the last line is just a number
-    if (/^\d+$/.test(lastLine)) {
+    // Method 1: Look for "Selected Persona: [number]"
+    const selectedPersonaLine = lines.find(line => line.startsWith('Selected Persona:'));
+    if (selectedPersonaLine) {
+      const match = selectedPersonaLine.match(/Selected Persona:\s*(\d+)/);
+      if (match) {
+        selectedIndex = parseInt(match[1]) - 1;
+        console.log('\nFound number in Selected Persona line:', match[1]);
+      }
+    }
+
+    // Method 2: Check if the last line is just a number
+    if (selectedIndex === -1) {
+      const lastLine = lines[lines.length - 1].trim();
+      if (/^\d+$/.test(lastLine)) {
         selectedIndex = parseInt(lastLine) - 1;
         console.log('\nFound clean number at end:', lastLine);
-    } else {
-        // If not, look for a line starting with "Selected: " followed by a number
-        for (let i = lines.length - 1; i >= 0; i--) {
-            const line = lines[i].trim();
-            const selectedMatch = line.match(/^(?:Selected:\s*)?(\d+)$/);
-            if (selectedMatch) {
-                selectedIndex = parseInt(selectedMatch[1]) - 1;
-                console.log('\nFound number in "Selected:" line:', selectedMatch[1]);
-                break;
-            }
+      }
+    }
+
+    // Method 3: Look for any line that's just a number
+    if (selectedIndex === -1) {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (/^\d+$/.test(line)) {
+          selectedIndex = parseInt(line) - 1;
+          console.log('\nFound standalone number:', line);
+          break;
         }
+      }
     }
     
     console.log('\nSelection Results:');
     console.log('Final selected index:', selectedIndex);
     console.log('Valid index range: 0 to', availablePersonas.length - 1);
     
-    // Return the selected persona or fall back to random persona if parsing fails
+    // If this is a conversation continuation and we have a previous speaker,
+    // prioritize selecting that persona
+    if (isConversationContinuation && previousSpeaker) {
+      const previousPersonaIndex = availablePersonas.findIndex(p => p.username === previousSpeaker);
+      if (previousPersonaIndex !== -1) {
+        console.log('\nOverriding selection to maintain conversation continuity with:', previousSpeaker);
+        selectedIndex = previousPersonaIndex;
+      }
+    }
+    
+    // Return the selected persona and analysis or fall back to random persona if parsing fails
     if (selectedIndex >= 0 && selectedIndex < availablePersonas.length) {
       const selectedPersona = availablePersonas[selectedIndex];
       console.log('\nSUCCESS: Selected persona', selectedIndex + 1, ':', selectedPersona.username);
       console.log('=================================\n');
-      return selectedPersona;
+      return {
+        persona: selectedPersona,
+        analysis: {
+          isConversationContinuation,
+          previousSpeaker,
+          directMention: false
+        }
+      };
     } else {
-      // Instead of falling back to first persona, select a random one from available personas
+      // If we failed to parse a valid index, and this is a conversation continuation,
+      // try to use the previous speaker directly
+      if (isConversationContinuation && previousSpeaker) {
+        const previousPersona = availablePersonas.find(p => p.username === previousSpeaker);
+        if (previousPersona) {
+          console.log('\nFallback: Using previous speaker for conversation continuation:', previousSpeaker);
+          return {
+            persona: previousPersona,
+            analysis: {
+              isConversationContinuation: true,
+              previousSpeaker,
+              directMention: false
+            }
+          };
+        }
+      }
+
+      // Last resort: random selection
       const randomIndex = Math.floor(Math.random() * availablePersonas.length);
       const randomPersona = availablePersonas[randomIndex];
       console.warn('\nFAILED to select valid persona, using random selection:');
       console.warn('- Selected random persona:', randomPersona.username);
       console.log('=================================\n');
-      return randomPersona;
+      return {
+        persona: randomPersona,
+        analysis: {
+          isConversationContinuation: false,
+          previousSpeaker: null,
+          directMention: false
+        }
+      };
     }
 
   } catch (error) {
     console.error('Error selecting persona:', error);
     // Fallback to random persona if there's an error
     const randomIndex = Math.floor(Math.random() * availablePersonas.length);
-    return availablePersonas[randomIndex];
+    return {
+      persona: availablePersonas[randomIndex],
+      analysis: {
+        isConversationContinuation: false,
+        previousSpeaker: null,
+        directMention: false
+      }
+    };
   }
 };
 
@@ -373,94 +475,19 @@ function Chat({ personas }) {
       setIsStreaming(true);
       setError(null);
       
-      // Get the last responder's username
-      let lastResponderUsername = null;
-      let immediateParentUsername = null;
-
-      if (replyToReplyId) {
-        // For nested replies
-        const parentMessage = messages.find(m => m.id === parentId);
-        if (parentMessage) {
-          const reply = parentMessage.replies?.find(r => r.id === replyToReplyId);
-          immediateParentUsername = reply?.username;
-          if (reply?.replies?.length > 0) {
-            lastResponderUsername = reply.replies[reply.replies.length - 1].username;
-          } else {
-            lastResponderUsername = reply?.username;
-          }
-        }
-      } else if (parentId) {
-        // For direct replies
-        const parentMessage = messages.find(m => m.id === parentId);
-        if (parentMessage) {
-          const replies = parentMessage.replies || [];
-          immediateParentUsername = parentMessage.username;
-          lastResponderUsername = replies.length > 0 
-            ? replies[replies.length - 1].username 
-            : parentMessage.username;
-        }
-      } else {
-        // For main thread messages
-        if (messages.length > 0) {
-          const lastMessage = messages[messages.length - 1];
-          lastResponderUsername = lastMessage.username;
-          immediateParentUsername = lastMessage.username;
-        }
-      }
-      
-      // Log available personas
-      console.log('Available personas:', personas.map(p => `\n${p.username} (${p.interests})`).join(''));
-      
-      // Filter out both the last responder and the immediate parent from available personas
-      const availablePersonas = personas.filter(p => 
-        p.username !== lastResponderUsername && 
-        p.username !== immediateParentUsername
-      );
-
-      if (availablePersonas.length === 0) {
-        console.log('No available personas to respond (avoiding self-replies)');
-        return;
-      }
-      
-      // Wait for the persona selection from filtered list
-      const respondingPersona = await selectBestPersona(userMessage, availablePersonas);
-      setGeneratingPersona(respondingPersona);
-      
-      console.log('\n=== Persona Selection Results ===');
-      console.log('User Message:', userMessage);
-      console.log('Last Responder:', lastResponderUsername);
-      console.log('Immediate Parent:', immediateParentUsername);
-      console.log('Selected Persona:', {
-        username: respondingPersona.username,
-        karma: respondingPersona.karma,
-        personality: respondingPersona.personality,
-        interests: respondingPersona.interests,
-        writingStyle: respondingPersona.writingStyle
-      });
-      console.log('===============================\n');
-
-      const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
-Username: ${respondingPersona.username}
-Karma: ${respondingPersona.karma}
-Personality: ${respondingPersona.personality}
-Interests: ${respondingPersona.interests}
-Writing Style: ${respondingPersona.writingStyle}
-
-Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise.`;
-      
       // Build message history based on the context
       let messageHistory = [];
       if (replyToReplyId) {
         // Find the parent message and its reply chain
         const parentMessage = messages.find(m => m.id === parentId);
         if (parentMessage) {
-          messageHistory.push({ role: parentMessage.role, content: parentMessage.content });
+          messageHistory.push(parentMessage);
           const reply = parentMessage.replies.find(r => r.id === replyToReplyId);
           if (reply) {
-            messageHistory.push({ role: reply.role, content: reply.content });
+            messageHistory.push(reply);
             // Add any nested replies
             reply.replies?.forEach(nestedReply => {
-              messageHistory.push({ role: nestedReply.role, content: nestedReply.content });
+              messageHistory.push(nestedReply);
             });
           }
         }
@@ -468,15 +495,90 @@ Respond to the conversation in character, maintaining consistency with your prof
         // Find the parent message and its replies
         const parentMessage = messages.find(m => m.id === parentId);
         if (parentMessage) {
-          messageHistory.push({ role: parentMessage.role, content: parentMessage.content });
+          messageHistory.push(parentMessage);
           parentMessage.replies.forEach(reply => {
-            messageHistory.push({ role: reply.role, content: reply.content });
+            messageHistory.push(reply);
           });
         }
       } else {
-        // Use all messages for context in main thread
-        messageHistory = messages.map(m => ({ role: m.role, content: m.content }));
+        // Use last few messages for context in main thread
+        messageHistory = messages.slice(-3);
       }
+
+      // First try to select a persona based on conversation continuity
+      const result = await selectBestPersona(userMessage, personas, messageHistory);
+      if (!result) {
+        console.log('No persona selected');
+        return;
+      }
+
+      const { persona: selectedPersona, analysis } = result;
+      console.log('Conversation Analysis:', analysis);
+
+      // Get the usernames for checking self-replies
+      const lastResponderUsername = messageHistory.length > 0 ? messageHistory[messageHistory.length - 1].username : null;
+      const immediateParentUsername = messageHistory.length > 0 ? messageHistory[0].username : null;
+
+      // If this is a direct mention or conversation continuation, always use the selected persona
+      if (analysis.directMention || analysis.isConversationContinuation) {
+        console.log('Using selected persona due to direct mention or conversation continuation:', selectedPersona.username);
+        setGeneratingPersona(selectedPersona);
+      } else {
+        // For new topics, avoid self-replies
+        if (selectedPersona.username === lastResponderUsername || selectedPersona.username === immediateParentUsername) {
+          // Try to find a different persona for new topics
+          const otherPersonas = personas.filter(p => 
+            p.username !== lastResponderUsername && 
+            p.username !== immediateParentUsername
+          );
+
+          if (otherPersonas.length > 0) {
+            console.log('New topic - selecting from other available personas');
+            const newResult = await selectBestPersona(userMessage, otherPersonas, messageHistory);
+            if (newResult) {
+              setGeneratingPersona(newResult.persona);
+            } else {
+              console.log('No other personas available to respond');
+              return;
+            }
+          } else {
+            console.log('No other personas available to avoid self-replies');
+            return;
+          }
+        } else {
+          setGeneratingPersona(selectedPersona);
+        }
+      }
+
+      console.log('\n=== Persona Selection Results ===');
+      console.log('User Message:', userMessage);
+      console.log('Last Responder:', lastResponderUsername);
+      console.log('Immediate Parent:', immediateParentUsername);
+      console.log('Is Conversation Continuation:', analysis.isConversationContinuation);
+      console.log('Previous Speaker:', analysis.previousSpeaker);
+      console.log('Selected Persona:', {
+        username: selectedPersona.username,
+        karma: selectedPersona.karma,
+        personality: selectedPersona.personality,
+        interests: selectedPersona.interests,
+        writingStyle: selectedPersona.writingStyle
+      });
+      console.log('===============================\n');
+
+      const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
+Username: ${selectedPersona.username}
+Karma: ${selectedPersona.karma}
+Personality: ${selectedPersona.personality}
+Interests: ${selectedPersona.interests}
+Writing Style: ${selectedPersona.writingStyle}
+
+Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise.`;
+      
+      // Use the already built message history for the chat context
+      const chatMessages = messageHistory.map(msg => ({ 
+        role: msg.role, 
+        content: msg.content 
+      }));
 
       console.log('Generating response for:', userMessage);
       const stream = await together.chat.completions.create({
@@ -486,7 +588,7 @@ Respond to the conversation in character, maintaining consistency with your prof
             role: 'system',
             content: systemPrompt
           },
-          ...messageHistory,
+          ...chatMessages,
           { role: 'user', content: userMessage }
         ],
         stream: true,
@@ -518,8 +620,8 @@ Respond to the conversation in character, maintaining consistency with your prof
                           id: newMessageId,
                           role: 'assistant',
                           content: responseContent,
-                          username: respondingPersona.username,
-                          karma: respondingPersona.karma,
+                          username: selectedPersona.username,
+                          karma: selectedPersona.karma,
                           timestamp: new Date().toISOString(),
                           upvotes: 0,
                           downvotes: 0,
@@ -550,8 +652,8 @@ Respond to the conversation in character, maintaining consistency with your prof
                   id: newMessageId,
                   role: 'assistant',
                   content: responseContent,
-                  username: respondingPersona.username,
-                  karma: respondingPersona.karma,
+                  username: selectedPersona.username,
+                  karma: selectedPersona.karma,
                   timestamp: new Date().toISOString(),
                   replies: [],
                   isReplyOpen: false,
@@ -569,8 +671,8 @@ Respond to the conversation in character, maintaining consistency with your prof
           id: newMessageId,
           role: 'assistant',
           content: '',
-          username: respondingPersona.username,
-          karma: respondingPersona.karma,
+          username: selectedPersona.username,
+          karma: selectedPersona.karma,
           timestamp: new Date().toISOString(),
           replies: [],
           isReplyOpen: false,
@@ -591,7 +693,7 @@ Respond to the conversation in character, maintaining consistency with your prof
       }
 
       // After any persona responds, maybe generate a random reply with the current AI response count
-      if (respondingPersona.username !== 'AutoModerator') {
+      if (selectedPersona.username !== 'AutoModerator') {
         await generateRandomReply(responseContent, newMessageId, targetParentId, aiResponseCount);
       }
 
