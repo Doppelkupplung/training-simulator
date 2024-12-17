@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Together } from 'together-ai';
 import config from '../config';
 import './Chat.css';
+import ReplyInput from './ReplyInput';
 
 let together = null;
 let initError = null;
@@ -25,7 +26,9 @@ function Chat({ personas }) {
       content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
       username: 'AutoModerator',
       karma: 1000000,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      replies: [],
+      isReplyOpen: false
     }
   ]);
   const [input, setInput] = useState('');
@@ -60,7 +63,42 @@ function Chat({ personas }) {
     return personas[Math.floor(Math.random() * personas.length)];
   };
 
-  const generateResponse = async (userMessage) => {
+  const toggleReply = (messageId) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, isReplyOpen: !msg.isReplyOpen }
+        : msg
+    ));
+  };
+
+  const handleReply = async (messageId, replyContent) => {
+    if (!replyContent.trim()) return;
+
+    const newReply = {
+      id: Date.now(),
+      role: 'user',
+      content: replyContent,
+      username: 'You',
+      karma: 1,
+      timestamp: new Date().toISOString(),
+      replies: [],
+      isReplyOpen: false
+    };
+
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { 
+            ...msg, 
+            replies: [...msg.replies, newReply],
+            isReplyOpen: false 
+          }
+        : msg
+    ));
+
+    await generateResponse(replyContent, messageId);
+  };
+
+  const generateResponse = async (userMessage, parentId = null) => {
     if (!together) {
       const errorMessage = 'Chat service is not available. Please check your API key configuration.';
       console.error(errorMessage);
@@ -100,23 +138,55 @@ Respond to the conversation in character, maintaining consistency with your prof
         temperature: 0.7,
       });
 
-      // Create a new message for streaming response
-      const responseId = messages.length + 2;
-      setMessages(prev => [...prev, {
-        id: responseId,
-        role: 'assistant',
-        content: '',
-        username: respondingPersona.username,
-        karma: respondingPersona.karma,
-        timestamp: new Date().toISOString()
-      }]);
+      let responseContent = '';
 
-      // Stream the response
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
+      if (!parentId) {
+        // Only create a new main message if this isn't a reply
+        const responseId = messages.length + 2;
+        setMessages(prev => [...prev, {
+          id: responseId,
+          role: 'assistant',
+          content: '',
+          username: respondingPersona.username,
+          karma: respondingPersona.karma,
+          timestamp: new Date().toISOString(),
+          replies: [],
+          isReplyOpen: false
+        }]);
+
+        // Stream the response for main message
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || '';
+          responseContent += content;
+          setMessages(prev => prev.map(msg => 
+            msg.id === responseId 
+              ? { ...msg, content: msg.content + content }
+              : msg
+          ));
+        }
+      } else {
+        // For replies, accumulate the content first
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || '';
+          responseContent += content;
+        }
+
+        // Then add the complete reply to the parent message
         setMessages(prev => prev.map(msg => 
-          msg.id === responseId 
-            ? { ...msg, content: msg.content + content }
+          msg.id === parentId 
+            ? { 
+                ...msg, 
+                replies: [...msg.replies, {
+                  id: Date.now(),
+                  role: 'assistant',
+                  content: responseContent,
+                  username: respondingPersona.username,
+                  karma: respondingPersona.karma,
+                  timestamp: new Date().toISOString(),
+                  replies: [],
+                  isReplyOpen: false
+                }]
+              }
             : msg
         ));
       }
@@ -124,15 +194,21 @@ Respond to the conversation in character, maintaining consistency with your prof
       console.error('Error generating response:', error);
       const errorMessage = error.message || 'Failed to generate response. Please try again.';
       setError(errorMessage);
-      const defaultPersona = getRandomPersona();
-      setMessages(prev => [...prev, {
-        id: messages.length + 2,
-        role: 'assistant',
-        content: 'I apologize, but I encountered an error. Please try again.',
-        username: defaultPersona.username,
-        karma: defaultPersona.karma,
-        timestamp: new Date().toISOString()
-      }]);
+      
+      if (!parentId) {
+        // Only add error message to main thread if it's not a reply
+        const defaultPersona = getRandomPersona();
+        setMessages(prev => [...prev, {
+          id: messages.length + 2,
+          role: 'assistant',
+          content: 'I apologize, but I encountered an error. Please try again.',
+          username: defaultPersona.username,
+          karma: defaultPersona.karma,
+          timestamp: new Date().toISOString(),
+          replies: [],
+          isReplyOpen: false
+        }]);
+      }
     } finally {
       setIsStreaming(false);
     }
@@ -146,14 +222,16 @@ Respond to the conversation in character, maintaining consistency with your prof
     setInput('');
     setError(null);
 
-    // Add user message
+    // Add user message with all required properties
     setMessages(prev => [...prev, {
       id: prev.length + 1,
       role: 'user',
       content: userMessage,
       username: 'You',
       karma: 1,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      replies: [],
+      isReplyOpen: false
     }]);
 
     // Generate AI response
@@ -211,10 +289,57 @@ Respond to the conversation in character, maintaining consistency with your prof
                 <button className="action-button">
                   <span className="arrow-down">▼</span> Downvote
                 </button>
-                <button className="action-button">Reply</button>
+                <button 
+                  className="action-button"
+                  onClick={() => toggleReply(message.id)}
+                >
+                  Reply
+                </button>
                 <button className="action-button">Share</button>
                 <button className="action-button">Report</button>
               </div>
+
+              {message.isReplyOpen && (
+                <div className="reply-form">
+                  <ReplyInput 
+                    onSubmit={(content) => handleReply(message.id, content)}
+                    isStreaming={isStreaming}
+                  />
+                </div>
+              )}
+
+              {message.replies.length > 0 && (
+                <div className="nested-replies">
+                  {message.replies.map(reply => (
+                    <div key={reply.id} className={`reddit-comment ${reply.role}`}>
+                      <div className="comment-metadata">
+                        <span className="username">u/{reply.username}</span>
+                        <span className="karma-dot">•</span>
+                        <span className="karma">{reply.karma} karma</span>
+                        <span className="karma-dot">•</span>
+                        <span className="timestamp">{formatTimestamp(reply.timestamp)}</span>
+                      </div>
+                      <div className="comment-content">
+                        {reply.content}
+                        {reply.id === messages.length && isStreaming && (
+                          <span className="typing-indicator">▊</span>
+                        )}
+                      </div>
+                      <div className="comment-actions">
+                        <button className="action-button">
+                          <span className="arrow-up">▲</span> Upvote
+                        </button>
+                        <button className="action-button">
+                          <span className="arrow-down">▼</span> Downvote
+                        </button>
+                        <button className="action-button">Reply</button>
+                        <button className="action-button">Share</button>
+                        <button className="action-button">Report</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {error && (
