@@ -6,6 +6,26 @@
   background-color: #25262b;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   height: 64px;
+  position: fixed;
+  top: -64px;
+  left: 0;
+  right: 0;
+  transition: top 0.3s ease;
+  z-index: 1000;
+}
+
+.navbar-trigger {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 999;
+}
+
+.navbar-trigger:hover + .navbar,
+.navbar:hover {
+  top: 0;
 }
 
 .navbar-brand h1 {
@@ -31,6 +51,6 @@
 }
 
 .navbar-links a:hover {
-  color: #5c7cfa;
-  background-color: rgba(92, 124, 250, 0.1);
+  color: #ff4500;
+  background-color: rgba(255, 69, 0, 0.1);
 } 

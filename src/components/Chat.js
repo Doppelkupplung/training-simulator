@@ -172,76 +172,84 @@ Respond to the conversation in character, maintaining consistency with your prof
   };
 
   return (
-    <div className="chat-container">
-      <div className="thread-title">
-        <h2>Reddit Thread Simulator</h2>
-        <div className="thread-info">
-          <span className="thread-stats">100% Upvoted</span>
-          <span className="thread-stats">•</span>
-          <span className="thread-stats">r/ThreadSimulator</span>
+    <div style={{ 
+      margin: 0,
+      padding: 0,
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <div className="chat-container">
+        <div className="thread-title">
+          <h2>Reddit Thread Simulator</h2>
+          <div className="thread-info">
+            <span className="thread-stats">100% Upvoted</span>
+            <span className="thread-stats">•</span>
+            <span className="thread-stats">r/ThreadSimulator</span>
+          </div>
         </div>
-      </div>
-      <div className="chat-messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`reddit-comment ${message.role}`}>
-            <div className="comment-metadata">
-              <span className="username">u/{message.username}</span>
-              <span className="karma-dot">•</span>
-              <span className="karma">{message.karma} karma</span>
-              <span className="karma-dot">•</span>
-              <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
+        <div className="chat-messages">
+          {messages.map((message) => (
+            <div key={message.id} className={`reddit-comment ${message.role}`}>
+              <div className="comment-metadata">
+                <span className="username">u/{message.username}</span>
+                <span className="karma-dot">•</span>
+                <span className="karma">{message.karma} karma</span>
+                <span className="karma-dot">•</span>
+                <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
+              </div>
+              <div className="comment-content">
+                {message.content}
+                {message.id === messages.length && isStreaming && (
+                  <span className="typing-indicator">▊</span>
+                )}
+              </div>
+              <div className="comment-actions">
+                <button className="action-button">
+                  <span className="arrow-up">▲</span> Upvote
+                </button>
+                <button className="action-button">
+                  <span className="arrow-down">▼</span> Downvote
+                </button>
+                <button className="action-button">Reply</button>
+                <button className="action-button">Share</button>
+                <button className="action-button">Report</button>
+              </div>
             </div>
-            <div className="comment-content">
-              {message.content}
-              {message.id === messages.length && isStreaming && (
-                <span className="typing-indicator">▊</span>
+          ))}
+          {error && (
+            <div className="error-message">
+              <div className="error-title">Error</div>
+              <div className="error-content">{error}</div>
+              {config.isDevelopment && (
+                <div className="error-debug">
+                  API Key status: {config.togetherApiKey ? 'Configured' : 'Missing'}
+                </div>
               )}
             </div>
-            <div className="comment-actions">
-              <button className="action-button">
-                <span className="arrow-up">▲</span> Upvote
-              </button>
-              <button className="action-button">
-                <span className="arrow-down">▼</span> Downvote
-              </button>
-              <button className="action-button">Reply</button>
-              <button className="action-button">Share</button>
-              <button className="action-button">Report</button>
-            </div>
-          </div>
-        ))}
-        {error && (
-          <div className="error-message">
-            <div className="error-title">Error</div>
-            <div className="error-content">{error}</div>
-            {config.isDevelopment && (
-              <div className="error-debug">
-                API Key status: {config.togetherApiKey ? 'Configured' : 'Missing'}
-              </div>
-            )}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-      <form className="chat-input-form" onSubmit={handleSubmit}>
-        <div className="chat-input-container">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? "Waiting for response..." : "What are your thoughts?"}
-            className="chat-input"
-            disabled={isStreaming || !together}
-          />
-          <button 
-            type="submit" 
-            className={`chat-submit ${(isStreaming || !together) ? 'disabled' : ''}`}
-            disabled={isStreaming || !together}
-          >
-            Comment
-          </button>
+          )}
+          <div ref={messagesEndRef} />
         </div>
-      </form>
+        <form className="chat-input-form" onSubmit={handleSubmit}>
+          <div className="chat-input-container">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isStreaming ? "Waiting for response..." : "What are your thoughts?"}
+              className="chat-input"
+              disabled={isStreaming || !together}
+            />
+            <button 
+              type="submit" 
+              className={`chat-submit ${(isStreaming || !together) ? 'disabled' : ''}`}
+              disabled={isStreaming || !together}
+            >
+              Comment
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
