@@ -216,6 +216,51 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     }
   };
 
+  const handleClonePersona = async (persona) => {
+    setIsGenerating(true);
+    setGenerationStatus('Starting clone...');
+    
+    try {
+      // Generate new username
+      const username = generateRandomUsername();
+      setGenerationStatus('Generating new personality...');
+      
+      // Generate new personality using LLM
+      const fields = await generatePersonaFields();
+      if (!fields) throw new Error('Failed to generate persona fields');
+
+      // Only use the personality from the generated fields
+      const clonedPersona = {
+        username,
+        personality: fields.personality,
+        interests: persona.interests, // Keep original interests
+        writingStyle: persona.writingStyle, // Keep original writing style
+        karma: generateRandomKarma()
+      };
+
+      // Generate new image
+      setGenerationStatus('Generating new avatar...');
+      const imageUrl = await generatePersonaImage(clonedPersona.interests);
+      if (!imageUrl) throw new Error('Failed to generate image');
+      
+      const personaData = {
+        ...clonedPersona,
+        imageUrl,
+      };
+
+      setGenerationStatus('Adding cloned persona...');
+      onAddPersona(personaData);
+      setGenerationStatus('');
+    } catch (error) {
+      console.error('Error cloning persona:', error);
+      setGenerationStatus(`Error: ${error.message}`);
+      // Keep error message visible for 3 seconds
+      setTimeout(() => setGenerationStatus(''), 3000);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="persona-builder">
       <div className="persona-header">
@@ -276,6 +321,13 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
                   onClick={() => handleEditPersona(persona)}
                 >
                   Edit
+                </button>
+                <button 
+                  className="clone-button"
+                  onClick={() => handleClonePersona(persona)}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? 'Cloning...' : 'Clone'}
                 </button>
                 <button 
                   className="delete-button"
