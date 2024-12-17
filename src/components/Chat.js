@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Together } from 'together-ai';
 import config from '../config';
 import './Chat.css';
+import CommentInput from './CommentInput';
+import './CommentInput.css';
 
 let together = null;
 let initError = null;
@@ -565,14 +567,14 @@ function Chat({ personas }) {
       });
       console.log('===============================\n');
 
-      const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
+      const systemPrompt = `You are roleplaying as a Reddit user with the following profile.:
 Username: ${selectedPersona.username}
 Karma: ${selectedPersona.karma}
 Personality: ${selectedPersona.personality}
 Interests: ${selectedPersona.interests}
 Writing Style: ${selectedPersona.writingStyle}
 
-Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise.`;
+Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise`;
       
       // Use the already built message history for the chat context
       const chatMessages = messageHistory.map(msg => ({ 
@@ -893,21 +895,14 @@ Respond to the conversation in character, maintaining consistency with your prof
             
             {isReplying && (
               <div className="reply-input-container">
-                <textarea 
-                  placeholder="What are your thoughts?"
+                <CommentInput
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   disabled={isStreaming}
+                  personas={personas}
+                  onSubmit={handleSubmitComment}
+                  onCancel={() => setIsReplying(false)}
                 />
-                <div className="reply-actions">
-                  <button onClick={() => setIsReplying(false)}>Cancel</button>
-                  <button 
-                    onClick={handleSubmitComment}
-                    disabled={!replyText.trim() || isStreaming}
-                  >
-                    Comment
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -965,21 +960,14 @@ Respond to the conversation in character, maintaining consistency with your prof
 
               {message.isReplyOpen && (
                 <div className="reply-form">
-                  <textarea 
-                    placeholder="What are your thoughts?"
+                  <CommentInput
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     disabled={isStreaming}
+                    personas={personas}
+                    onSubmit={() => handleSubmitReply(message.id)}
+                    onCancel={() => toggleReply(message.id)}
                   />
-                  <div className="reply-actions">
-                    <button onClick={() => toggleReply(message.id)}>Cancel</button>
-                    <button 
-                      onClick={() => handleSubmitReply(message.id)}
-                      disabled={!replyText.trim() || isStreaming}
-                    >
-                      Reply
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -1033,21 +1021,14 @@ Respond to the conversation in character, maintaining consistency with your prof
 
                       {reply.isReplyOpen && (
                         <div className="reply-form">
-                          <textarea 
-                            placeholder="What are your thoughts?"
+                          <CommentInput
                             value={replyText}
                             onChange={(e) => setReplyText(e.target.value)}
                             disabled={isStreaming}
+                            personas={personas}
+                            onSubmit={() => handleSubmitReply(message.id, reply.id)}
+                            onCancel={() => toggleReply(message.id, reply.id)}
                           />
-                          <div className="reply-actions">
-                            <button onClick={() => toggleReply(message.id, reply.id)}>Cancel</button>
-                            <button 
-                              onClick={() => handleSubmitReply(message.id, reply.id)}
-                              disabled={!replyText.trim() || isStreaming}
-                            >
-                              Reply
-                            </button>
-                          </div>
                         </div>
                       )}
 
@@ -1115,7 +1096,7 @@ Respond to the conversation in character, maintaining consistency with your prof
       {generatingPersona && (
         <div className="status-popup">
           <div className="spinner" />
-          <span>u/{generatingPersona.username} is typing...</span>
+          <span>Someone is typing...</span>
         </div>
       )}
     </div>

@@ -1,0 +1,130 @@
+.comment-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.comment-input {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px;
+  background: #0E1113;
+  border: 1px solid #1a1b1e;
+  border-radius: 4px;
+  color: #D7DADC;
+  margin-bottom: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.comment-input:focus {
+  border-color: #D7DADC;
+  outline: none;
+}
+
+.comment-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.username-suggestions {
+  position: absolute;
+  top: calc(100% - 8px);
+  left: 8px;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #1a1b1e;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  padding: 4px 0;
+}
+
+.suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #D7DADC;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.suggestion-item::before {
+  content: 'u/';
+  color: #818384;
+  margin-right: 2px;
+}
+
+.suggestion-item:hover,
+.suggestion-item.selected {
+  background-color: #272729;
+  color: #ff4500;
+}
+
+.suggestion-item:active {
+  background-color: #343536;
+}
+
+.reply-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.reply-actions button {
+  padding: 4px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  border: 1px solid #343536;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reply-actions button:first-child {
+  background: transparent;
+  color: #D7DADC;
+}
+
+.reply-actions button:first-child:hover {
+  border-color: #D7DADC;
+}
+
+.reply-actions button:last-child {
+  background: #D7DADC;
+  color: #1A1A1B;
+  border: none;
+}
+
+.reply-actions button:last-child:hover:not(:disabled) {
+  background: #FFFFFF;
+}
+
+.reply-actions button:last-child:disabled {
+  background: #343536;
+  color: #818384;
+  cursor: not-allowed;
+}
+
+.username-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.username-suggestions::-webkit-scrollbar-track {
+  background: #1a1b1e;
+  border-radius: 3px;
+}
+
+.username-suggestions::-webkit-scrollbar-thumb {
+  background: #343536;
+  border-radius: 3px;
+}
+
+.username-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+} 
