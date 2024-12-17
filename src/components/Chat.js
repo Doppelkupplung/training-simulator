@@ -20,80 +20,125 @@ try {
   initError = error.message;
 }
 
-const selectBestPersona = async (userMessage, availablePersonas, messageHistory = []) => {
-  if (!availablePersonas || availablePersonas.length === 0) {
-    console.log('No available personas to select from');
-    return null;
-  }
-
-  try {
-    // First check for direct mentions of usernames in the message
-    for (const persona of availablePersonas) {
-      const usernamePattern = new RegExp(`@?u/${persona.username}\\b|@${persona.username}\\b`, 'i');
-      if (usernamePattern.test(userMessage)) {
-        console.log(`Found direct mention of ${persona.username}`);
-        return {
-          persona,
-          analysis: {
-            isConversationContinuation: true,
-            previousSpeaker: persona.username,
-            directMention: true
-          }
-        };
+const getMessageChain = (messages, messageId, replyId = null) => {
+  const chain = [];
+  
+  // Find the target message and its chain of replies
+  const findMessage = (msgs, targetId) => {
+    for (const msg of msgs) {
+      if (msg.id === targetId) {
+        return msg;
+      }
+      if (msg.replies) {
+        const found = findMessage(msg.replies, targetId);
+        if (found) return found;
       }
     }
+    return null;
+  };
 
-    // Format the recent message history for the LLM
-    const recentMessages = messageHistory
-      .slice(-3) // Get last 3 messages for context
+  // Get the main message
+  const mainMessage = findMessage(messages, messageId);
+  if (!mainMessage) return chain;
+
+  chain.push(mainMessage);
+
+  // If we have a replyId, find that specific reply chain
+  if (replyId) {
+    const findReplyChain = (replies, targetId) => {
+      for (const reply of replies) {
+        if (reply.id === targetId) {
+          chain.push(reply);
+          // Add any nested replies
+          if (reply.replies) {
+            chain.push(...reply.replies);
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (mainMessage.replies) {
+      findReplyChain(mainMessage.replies, replyId);
+    }
+  } else {
+    // Add all replies in the chain
+    if (mainMessage.replies) {
+      chain.push(...mainMessage.replies);
+    }
+  }
+
+  return chain;
+};
+
+const selectNextPersona = async (userMessage, personas, messageChain, aiResponseCount) => {
+  try {
+    // Get the last few participants in order
+    const recentParticipants = messageChain
+      .filter(msg => msg.role === 'assistant')
+      .map(msg => msg.username)
+      .reverse()
+      .slice(0, 3);
+
+    console.log('\n=== Persona Selection Debug ===');
+    console.log('Recent participants:', recentParticipants);
+    
+    // Filter out personas that shouldn't participate
+    const availablePersonas = personas.filter(p => 
+      // Don't allow the most recent responder to reply
+      p.username !== recentParticipants[0] &&
+      // Don't allow AutoModerator in conversations
+      p.username !== 'AutoModerator' &&
+      // Don't allow the user as a persona
+      p.username !== 'You'
+    );
+
+    console.log('Available personas after filtering:', availablePersonas.map(p => p.username));
+
+    if (availablePersonas.length === 0) {
+      console.log('No available personas after filtering');
+      return null;
+    }
+
+    // Format recent messages for context
+    const recentMessages = messageChain
+      .slice(-3)
       .map(msg => `u/${msg.username}: ${msg.content}`)
       .join('\n');
 
-    // Create a prompt that asks the LLM to analyze the message and select the best persona
-    const analysisPrompt = `You are a conversation analyzer. Your task is to analyze a message and select the most appropriate Reddit user to respond based on the following criteria in order:
-
-1. Direct mentions (already checked by code)
-2. Conversation continuity - check if the message is continuing a discussion that one of the personas was involved in
-3. Interest matching - if no conversation is being continued, select based on matching interests
+    // Create the analysis prompt
+    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message.
 
 Recent conversation:
 ${recentMessages}
 
 New message to analyze: "${userMessage}"
 
-Available personas:
+Available personas (ONLY select from these - these are the only valid options):
 ${availablePersonas.map((p, i) => `
 ${i + 1}. Username: ${p.username}
    Interests & Expertise: ${p.interests}`).join('\n')}
 
 Instructions:
-1. First, identify if this message is continuing a previous conversation or topic with a specific persona
-2. If it is continuing a conversation, select that persona if available
-3. If it's a new topic, compare the message topics with each persona's interests and expertise
-4. Explain your selection reasoning
+1. Analyze the conversation flow and topic
+2. Select a persona whose interests and expertise match the discussion
+3. IMPORTANT: You MUST select from the available personas listed above
+4. Consider conversation continuity but prioritize topic relevance
 
 Format your response EXACTLY like this:
-Conversation Analysis: [Is this continuing a previous discussion? Yes/No]
-Previous Speaker: [username of the persona this is responding to, if any]
-Topic: [topic from message]
 Selected Persona: [number]
-Reasoning: [2-3 sentences explaining why this persona was selected]
+Topic: [main topic of discussion]
+Reasoning: [2-3 sentences explaining the selection]
 
-End your response with ONLY the number on the last line, like this example:
-Conversation Analysis: Yes
-Previous Speaker: u/TechGamer404
-Topic: Gaming strategies in Minecraft
-Selected Persona: 2
-Reasoning: This message is directly responding to TechGamer404's previous comment about Minecraft building techniques.
-
-2`;
+End your response with ONLY the number on the last line.`;
 
     const response = await together.chat.completions.create({
       model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are a conversation analyzer that selects the most relevant persona based on conversation continuity first, then interest matching.'
+          content: 'You are a conversation analyzer that selects the most relevant persona based on topic matching and conversation flow.'
         },
         {
           role: 'user',
@@ -103,141 +148,40 @@ Reasoning: This message is directly responding to TechGamer404's previous commen
     });
 
     const fullResponse = response.choices[0].message.content;
-    
-    // Debug the full selection process
-    console.log('\n=== FULL PERSONA SELECTION DEBUG ===');
-    console.log('User Message:', userMessage);
-    console.log('Available Personas:', availablePersonas.map((p, i) => ({
-      index: i + 1,
-      username: p.username,
-      interests: p.interests
-    })));
-    console.log('\nLLM Response:', fullResponse);
-    
-    // Extract the last line and parse the index
+    console.log('LLM Response:', fullResponse);
+
+    // Parse the response to get the selected persona index
     const lines = fullResponse.split('\n').filter(line => line.trim());
-    console.log('\nParsing Process:');
-    console.log('All non-empty lines:', JSON.stringify(lines, null, 2));
-    
-    // Parse conversation analysis
-    const isConversationContinuation = lines.some(line => 
-      line.startsWith('Conversation Analysis:') && 
-      line.toLowerCase().includes('yes')
-    );
-    const previousSpeakerMatch = lines.find(line => 
-      line.startsWith('Previous Speaker:')
-    );
-    const previousSpeaker = previousSpeakerMatch ? 
-      previousSpeakerMatch.split(':')[1].trim().replace('u/', '') : 
-      null;
-    
-    // Find the selected persona number using multiple methods
     let selectedIndex = -1;
-    
-    // Method 1: Look for "Selected Persona: [number]"
+
+    // Try to find the index in the Selected Persona line
     const selectedPersonaLine = lines.find(line => line.startsWith('Selected Persona:'));
     if (selectedPersonaLine) {
       const match = selectedPersonaLine.match(/Selected Persona:\s*(\d+)/);
       if (match) {
         selectedIndex = parseInt(match[1]) - 1;
-        console.log('\nFound number in Selected Persona line:', match[1]);
       }
     }
 
-    // Method 2: Check if the last line is just a number
+    // If not found, check the last line
     if (selectedIndex === -1) {
       const lastLine = lines[lines.length - 1].trim();
       if (/^\d+$/.test(lastLine)) {
         selectedIndex = parseInt(lastLine) - 1;
-        console.log('\nFound clean number at end:', lastLine);
       }
     }
 
-    // Method 3: Look for any line that's just a number
-    if (selectedIndex === -1) {
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i].trim();
-        if (/^\d+$/.test(line)) {
-          selectedIndex = parseInt(line) - 1;
-          console.log('\nFound standalone number:', line);
-          break;
-        }
-      }
-    }
-    
-    console.log('\nSelection Results:');
-    console.log('Final selected index:', selectedIndex);
-    console.log('Valid index range: 0 to', availablePersonas.length - 1);
-    
-    // If this is a conversation continuation and we have a previous speaker,
-    // prioritize selecting that persona
-    if (isConversationContinuation && previousSpeaker) {
-      const previousPersonaIndex = availablePersonas.findIndex(p => p.username === previousSpeaker);
-      if (previousPersonaIndex !== -1) {
-        console.log('\nOverriding selection to maintain conversation continuity with:', previousSpeaker);
-        selectedIndex = previousPersonaIndex;
-      }
-    }
-    
-    // Return the selected persona and analysis or fall back to random persona if parsing fails
     if (selectedIndex >= 0 && selectedIndex < availablePersonas.length) {
       const selectedPersona = availablePersonas[selectedIndex];
-      console.log('\nSUCCESS: Selected persona', selectedIndex + 1, ':', selectedPersona.username);
-      console.log('=================================\n');
-      return {
-        persona: selectedPersona,
-        analysis: {
-          isConversationContinuation,
-          previousSpeaker,
-          directMention: false
-        }
-      };
-    } else {
-      // If we failed to parse a valid index, and this is a conversation continuation,
-      // try to use the previous speaker directly
-      if (isConversationContinuation && previousSpeaker) {
-        const previousPersona = availablePersonas.find(p => p.username === previousSpeaker);
-        if (previousPersona) {
-          console.log('\nFallback: Using previous speaker for conversation continuation:', previousSpeaker);
-          return {
-            persona: previousPersona,
-            analysis: {
-              isConversationContinuation: true,
-              previousSpeaker,
-              directMention: false
-            }
-          };
-        }
-      }
-
-      // Last resort: random selection
-      const randomIndex = Math.floor(Math.random() * availablePersonas.length);
-      const randomPersona = availablePersonas[randomIndex];
-      console.warn('\nFAILED to select valid persona, using random selection:');
-      console.warn('- Selected random persona:', randomPersona.username);
-      console.log('=================================\n');
-      return {
-        persona: randomPersona,
-        analysis: {
-          isConversationContinuation: false,
-          previousSpeaker: null,
-          directMention: false
-        }
-      };
+      console.log('Selected:', selectedPersona.username);
+      console.log('===============================\n');
+      return selectedPersona;
     }
 
+    return availablePersonas[0]; // Fallback to first available persona
   } catch (error) {
     console.error('Error selecting persona:', error);
-    // Fallback to random persona if there's an error
-    const randomIndex = Math.floor(Math.random() * availablePersonas.length);
-    return {
-      persona: availablePersonas[randomIndex],
-      analysis: {
-        isConversationContinuation: false,
-        previousSpeaker: null,
-        directMention: false
-      }
-    };
+    return null; // Return null instead of undefined availablePersonas
   }
 };
 
@@ -352,6 +296,14 @@ function Chat({ personas }) {
         ? { ...msg, isReplyOpen: !msg.isReplyOpen }
         : { ...msg, isReplyOpen: false };
     }));
+
+    // Add setTimeout to wait for the reply form to be rendered
+    setTimeout(() => {
+      const replyForm = document.querySelector(`[data-message-id="${messageId}"] .reply-form`);
+      if (replyForm) {
+        replyForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
   const handleVote = (messageId, isUpvote, isReply = false, parentId = null) => {
@@ -434,7 +386,7 @@ function Chat({ personas }) {
         if (reply) {
           lastResponderUsername = reply.username;
           immediateParentUsername = reply.username;
-          targetMessageId = reply.id;
+          targetMessageId = messageId;
           targetParentId = parentId;
         } else {
           lastResponderUsername = parentMessage.username;
@@ -476,26 +428,19 @@ function Chat({ personas }) {
         p.username !== 'You' // Don't include user in random replies
       );
 
-      // Get all usernames in the current reply thread to prevent any self-replies in the chain
-      const replyThreadUsernames = new Set();
-      if (parentMessage) {
-        // Only add the most recent responder to prevent self-replies
-        if (lastResponderUsername) {
-          replyThreadUsernames.add(lastResponderUsername);
-        }
+      // Double-check that we have available personas after filtering
+      if (availablePersonas.length === 0) {
+        console.log('No available personas after filtering');
+        return;
       }
 
-      // Filter out only personas that were the most recent responder
-      const filteredPersonas = availablePersonas.filter(p => !replyThreadUsernames.has(p.username));
-
-      console.log('Reply Thread Last Responder:', Array.from(replyThreadUsernames));
-      console.log('Available Personas for Reply:', filteredPersonas.map(p => p.username));
+      console.log('Available Personas for Reply:', availablePersonas.map(p => p.username));
       
       // 70% chance to generate a reply if we have available personas
       const shouldReply = Math.random() < 0.7;
       console.log('Should Generate Reply:', shouldReply);
       
-      if (filteredPersonas.length > 0 && shouldReply) {
+      if (shouldReply) {
         // Wait a random time between 2-5 seconds before starting the reply
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
         
@@ -511,8 +456,7 @@ function Chat({ personas }) {
           generateResponse(replyPrompt, targetMessageId, null, true, aiResponseCount + 1);
         }
       } else {
-        console.log('Skipping reply generation:', 
-          filteredPersonas.length === 0 ? 'No available personas' : 'Random chance prevented reply');
+        console.log('Skipping reply generation due to random chance');
       }
     }
     console.log('===============================\n');
@@ -526,144 +470,30 @@ function Chat({ personas }) {
       return;
     }
 
-    // Check if we've reached the maximum AI response chain (except for user-initiated responses)
+    // Check if we've reached the maximum AI response chain
     if (isRandomReply && aiResponseCount >= 2) {
       console.log('Reached maximum AI response chain (2), stopping');
       return;
     }
 
-    // Check nesting level and adjust target IDs if needed
-    const currentNestLevel = getNestingLevel(parentId, replyToReplyId);
     let targetParentId = parentId;
     let targetReplyToReplyId = replyToReplyId;
-
-    if (currentNestLevel >= 3) {
-      // At level 3, we want to add the reply at the same level
-      // So we keep the same parent ID but use null for replyToReplyId
-      targetReplyToReplyId = null;
-    }
 
     try {
       setIsStreaming(true);
       setError(null);
+
+      // Get the full message chain for context
+      const messageChain = getMessageChain(messages, parentId, replyToReplyId);
       
-      // Build message history based on the context
-      let messageHistory = [];
-      let lastResponderUsername = null;
-      let immediateParentUsername = null;
-
-      if (replyToReplyId) {
-        // Find the parent message and its reply chain
-        const parentMessage = messages.find(m => m.id === parentId);
-        if (parentMessage) {
-          messageHistory.push(parentMessage);
-          immediateParentUsername = parentMessage.username;
-          const reply = parentMessage.replies.find(r => r.id === replyToReplyId);
-          if (reply) {
-            messageHistory.push(reply);
-            lastResponderUsername = reply.username;
-            // Add any nested replies
-            if (reply.replies && reply.replies.length > 0) {
-              reply.replies.forEach(nestedReply => {
-                messageHistory.push(nestedReply);
-                lastResponderUsername = nestedReply.username; // Update to the most recent responder
-              });
-            }
-          }
-        }
-      } else if (parentId) {
-        // Find the parent message and its replies
-        const parentMessage = messages.find(m => m.id === parentId);
-        if (parentMessage) {
-          messageHistory.push(parentMessage);
-          immediateParentUsername = parentMessage.username;
-          if (parentMessage.replies.length > 0) {
-            parentMessage.replies.forEach(reply => {
-              messageHistory.push(reply);
-              lastResponderUsername = reply.username; // Update to the most recent responder
-            });
-          } else {
-            lastResponderUsername = parentMessage.username;
-          }
-        }
-      } else {
-        // Use last few messages for context in main thread
-        messageHistory = messages.slice(-3);
-        if (messageHistory.length > 0) {
-          lastResponderUsername = messageHistory[messageHistory.length - 1].username;
-        }
-      }
-
-      console.log('\n=== Response Generation Debug ===');
-      console.log('Last Responder:', lastResponderUsername);
-      console.log('Immediate Parent:', immediateParentUsername);
-      console.log('Message History:', messageHistory.map(m => `${m.username}: ${m.content}`));
-
-      // Filter available personas to only exclude the last responder
-      const availablePersonas = personas.filter(p => 
-        p.username !== lastResponderUsername && // Don't allow same persona to reply to itself
-        p.username !== 'AutoModerator' && // Don't include AutoModerator in random replies
-        p.username !== 'You' // Don't include user in random replies
-      );
-
-      console.log('Available Personas:', availablePersonas.map(p => p.username));
-
-      // First try to select a persona based on conversation continuity
-      const result = await selectBestPersona(userMessage, availablePersonas, messageHistory);
-      if (!result) {
-        console.log('No persona selected');
+      // Select the next persona to respond
+      const selectedPersona = await selectNextPersona(userMessage, personas, messageChain, aiResponseCount);
+      if (!selectedPersona) {
+        console.log('No suitable persona available');
         return;
       }
 
-      const { persona: selectedPersona, analysis } = result;
-      console.log('Selected Persona:', selectedPersona.username);
-      console.log('===============================\n');
-
-      // If this is a direct mention or conversation continuation, always use the selected persona
-      if (analysis.directMention || analysis.isConversationContinuation) {
-        console.log('Using selected persona due to direct mention or conversation continuation:', selectedPersona.username);
-        setGeneratingPersona(selectedPersona);
-      } else {
-        // For new topics, avoid self-replies
-        if (selectedPersona.username === lastResponderUsername || selectedPersona.username === immediateParentUsername) {
-          // Try to find a different persona for new topics
-          const otherPersonas = personas.filter(p => 
-            p.username !== lastResponderUsername && 
-            p.username !== immediateParentUsername
-          );
-
-          if (otherPersonas.length > 0) {
-            console.log('New topic - selecting from other available personas');
-            const newResult = await selectBestPersona(userMessage, otherPersonas, messageHistory);
-            if (newResult) {
-              setGeneratingPersona(newResult.persona);
-            } else {
-              console.log('No other personas available to respond');
-              return;
-            }
-          } else {
-            console.log('No other personas available to avoid self-replies');
-            return;
-          }
-        } else {
-          setGeneratingPersona(selectedPersona);
-        }
-      }
-
-      console.log('\n=== Persona Selection Results ===');
-      console.log('User Message:', userMessage);
-      console.log('Last Responder:', lastResponderUsername);
-      console.log('Immediate Parent:', immediateParentUsername);
-      console.log('Is Conversation Continuation:', analysis.isConversationContinuation);
-      console.log('Previous Speaker:', analysis.previousSpeaker);
-      console.log('Selected Persona:', {
-        username: selectedPersona.username,
-        karma: selectedPersona.karma,
-        personality: selectedPersona.personality,
-        interests: selectedPersona.interests,
-        writingStyle: selectedPersona.writingStyle
-      });
-      console.log('===============================\n');
+      setGeneratingPersona(selectedPersona);
 
       const systemPrompt = `You are roleplaying as a Reddit user with the following profile.:
 Username: ${selectedPersona.username}
@@ -674,8 +504,8 @@ Writing Style: ${selectedPersona.writingStyle}
 
 Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise.`;
       
-      // Use the already built message history for the chat context
-      const chatMessages = messageHistory.map(msg => ({ 
+      // Use the message chain for context
+      const chatMessages = messageChain.map(msg => ({ 
         role: msg.role, 
         content: msg.content 
       }));
@@ -707,33 +537,62 @@ Respond to the conversation in character, maintaining consistency with your prof
         }
 
         newMessageId = Date.now();
-        // Then add the complete reply to the nested reply
-        setMessages(prev => prev.map(msg =>
-          msg.id === targetParentId
-            ? {
-                ...msg,
-                replies: msg.replies.map(reply =>
-                  reply.id === targetReplyToReplyId
-                    ? {
-                        ...reply,
-                        replies: [...(reply.replies || []), {
-                          id: newMessageId,
-                          role: 'assistant',
-                          content: responseContent,
-                          username: selectedPersona.username,
-                          karma: selectedPersona.karma,
-                          timestamp: new Date().toISOString(),
-                          upvotes: 0,
-                          downvotes: 0,
-                          replies: [],
-                          isReplyOpen: false
-                        }]
-                      }
-                    : reply
-                )
-              }
-            : msg
-        ));
+        // Check if we're at the maximum nesting level (level 3)
+        const nestingLevel = getNestingLevel(targetParentId, targetReplyToReplyId);
+        
+        if (nestingLevel >= 3) {
+          // At max nesting level, add the reply as a sibling to the current reply
+          setMessages(prev => prev.map(msg =>
+            msg.id === targetParentId
+              ? {
+                  ...msg,
+                  replies: [
+                    ...msg.replies,
+                    {
+                      id: newMessageId,
+                      role: 'assistant',
+                      content: responseContent,
+                      username: selectedPersona.username,
+                      karma: selectedPersona.karma,
+                      timestamp: new Date().toISOString(),
+                      upvotes: 0,
+                      downvotes: 0,
+                      replies: [],
+                      isReplyOpen: false
+                    }
+                  ]
+                }
+              : msg
+          ));
+        } else {
+          // For level 2 replies, nest them normally
+          setMessages(prev => prev.map(msg =>
+            msg.id === targetParentId
+              ? {
+                  ...msg,
+                  replies: msg.replies.map(reply =>
+                    reply.id === targetReplyToReplyId
+                      ? {
+                          ...reply,
+                          replies: [...(reply.replies || []), {
+                            id: newMessageId,
+                            role: 'assistant',
+                            content: responseContent,
+                            username: selectedPersona.username,
+                            karma: selectedPersona.karma,
+                            timestamp: new Date().toISOString(),
+                            upvotes: 0,
+                            downvotes: 0,
+                            replies: [],
+                            isReplyOpen: false
+                          }]
+                        }
+                      : reply
+                  )
+                }
+              : msg
+          ));
+        }
 
       } else if (targetParentId) {
         // For replies, accumulate the content first
@@ -1045,7 +904,11 @@ Respond to the conversation in character, maintaining consistency with your prof
         
         <div className="chat-messages">
           {messages.map((message) => (
-            <div key={message.id} className={`reddit-comment ${message.role}`}>
+            <div 
+              key={message.id} 
+              className={`reddit-comment ${message.role}`}
+              data-message-id={message.id}
+            >
               <div className="comment-header">
                 <div className="comment-user-info">
                   {message.role === 'assistant' && (
@@ -1109,7 +972,11 @@ Respond to the conversation in character, maintaining consistency with your prof
               {message.replies.length > 0 && (
                 <div className="nested-replies">
                   {message.replies.map(reply => (
-                    <div key={reply.id} className={`reddit-comment ${reply.role}`}>
+                    <div 
+                      key={reply.id} 
+                      className={`reddit-comment ${reply.role}`}
+                      data-message-id={reply.id}
+                    >
                       <div className="comment-header">
                         <div className="comment-user-info">
                           {reply.role === 'assistant' && (
@@ -1171,7 +1038,11 @@ Respond to the conversation in character, maintaining consistency with your prof
                       {reply.replies && reply.replies.length > 0 && (
                         <div className="nested-replies">
                           {reply.replies.map(nestedReply => (
-                            <div key={nestedReply.id} className={`reddit-comment ${nestedReply.role}`}>
+                            <div 
+                              key={nestedReply.id} 
+                              className={`reddit-comment ${nestedReply.role}`}
+                              data-message-id={nestedReply.id}
+                            >
                               <div className="comment-header">
                                 <div className="comment-user-info">
                                   {nestedReply.role === 'assistant' && (
@@ -1194,13 +1065,24 @@ Respond to the conversation in character, maintaining consistency with your prof
                                 {formatMessageWithMentions(nestedReply.content, personas, handleShowUserInfo)}
                               </div>
                               <div className="comment-actions">
-                                <button className="action-button">
+                                <button 
+                                  className="action-button"
+                                  onClick={() => handleVote(nestedReply.id, true, true, message.id)}
+                                >
                                   <span className="arrow-up">▲</span> {nestedReply.upvotes}
                                 </button>
-                                <button className="action-button">
+                                <button 
+                                  className="action-button"
+                                  onClick={() => handleVote(nestedReply.id, false, true, message.id)}
+                                >
                                   <span className="arrow-down">▼</span> {nestedReply.downvotes}
                                 </button>
-                                <button className="action-button">Reply</button>
+                                <button 
+                                  className="action-button"
+                                  onClick={() => toggleReply(message.id, reply.id)}
+                                >
+                                  Reply
+                                </button>
                                 <button className="action-button">Share</button>
                                 <button className="action-button">Report</button>
                               </div>

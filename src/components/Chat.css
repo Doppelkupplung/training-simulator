@@ -99,6 +99,9 @@ body {
   border: 1px solid #1a1b1e;
   animation: messageAppear 0.3s ease;
   margin-bottom: 0.5rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .reddit-comment.user {
@@ -137,12 +140,14 @@ body {
   font-size: 0.95rem;
   color: #e4e5e7;
   margin-bottom: 0.5rem;
+  order: 1;
 }
 
 .comment-actions {
   display: flex;
   gap: 1rem;
   margin-top: 0.5rem;
+  order: 1;
 }
 
 .action-button {
@@ -298,11 +303,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: calc(100% - 24px);
+  order: 3;
 }
 
 .nested-replies .nested-replies {
   margin-left: 12px;
   padding-left: 12px;
+  width: calc(100% - 12px);
 }
 
 .nested-replies .reddit-comment {
@@ -322,11 +330,14 @@ body {
 }
 
 .reply-form {
+  order: 2;
   margin-top: 8px;
+  margin-bottom: 8px;
   padding: 12px;
   background-color: #0E1113;
   border: 1px solid #1a1b1e;
   border-radius: 4px;
+  width: 100%;
 }
 
 .reply-form textarea {
@@ -605,4 +616,24 @@ body {
 .user-mention:hover {
   background-color: rgba(255, 69, 0, 0.2);
   cursor: pointer;
+}
+
+.nested-replies .reply-form {
+  width: 100%;
+  margin-left: 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.nested-replies .nested-replies .reply-form {
+  width: 100%;
+  margin-left: 0;
+  position: relative;
+}
+
+.nested-replies .nested-replies .nested-replies .reply-form {
+  width: 100%;
+  margin-left: 0;
+  position: relative;
 } 
