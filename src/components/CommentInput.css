@@ -30,11 +30,9 @@
 
 .username-suggestions {
   position: absolute;
-  top: calc(100% - 8px);
-  left: 8px;
-  min-width: 200px;
-  max-width: 300px;
-  max-height: 200px;
+  min-width: 160px;
+  max-width: 250px;
+  max-height: 160px;
   overflow-y: auto;
   background: #1a1b1e;
   border: 1px solid #343536;
@@ -42,16 +40,36 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 1000;
   padding: 4px 0;
+  margin-top: 20px;
+  transform-origin: top left;
+  animation: suggestionsAppear 0.1s ease-out;
+  font-family: inherit;
+  pointer-events: auto;
+}
+
+@keyframes suggestionsAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .suggestion-item {
-  padding: 8px 12px;
+  padding: 6px 12px;
   cursor: pointer;
   color: #D7DADC;
-  font-size: 14px;
+  font-size: 13px;
   display: flex;
   align-items: center;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .suggestion-item::before {
@@ -112,17 +130,16 @@
 }
 
 .username-suggestions::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .username-suggestions::-webkit-scrollbar-track {
-  background: #1a1b1e;
-  border-radius: 3px;
+  background: transparent;
 }
 
 .username-suggestions::-webkit-scrollbar-thumb {
   background: #343536;
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 .username-suggestions::-webkit-scrollbar-thumb:hover {

@@ -5,6 +5,7 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -13,6 +14,42 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
       textareaRef.current.selectionEnd = cursorPosition;
     }
   }, [cursorPosition]);
+
+  const getCaretCoordinates = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return { top: 0, left: 0 };
+
+    const { selectionStart, scrollLeft, scrollTop } = textarea;
+    const textBeforeCursor = value.slice(0, selectionStart);
+    
+    // Find the current line and column
+    const lines = textBeforeCursor.split('\n');
+    const currentLineIndex = lines.length - 1;
+    const currentLine = lines[currentLineIndex];
+    
+    // Create a temporary span to measure text
+    const span = document.createElement('span');
+    span.style.font = getComputedStyle(textarea).font;
+    span.style.visibility = 'hidden';
+    span.style.position = 'absolute';
+    span.style.whiteSpace = 'pre';
+    span.textContent = currentLine;
+    document.body.appendChild(span);
+    
+    const textWidth = span.offsetWidth;
+    document.body.removeChild(span);
+
+    // Calculate position
+    const { paddingLeft, paddingTop, lineHeight } = getComputedStyle(textarea);
+    const pLeft = parseInt(paddingLeft);
+    const pTop = parseInt(paddingTop);
+    const lHeight = parseInt(lineHeight);
+
+    return {
+      left: pLeft + textWidth - scrollLeft,
+      top: pTop + (currentLineIndex * lHeight) - scrollTop
+    };
+  };
 
   const handleInputChange = (e) => {
     const newValue = e.target.value;
@@ -31,7 +68,14 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
         .map(p => p.username);
       
       setSuggestions(matchingPersonas);
-      setShowSuggestions(matchingPersonas.length > 0);
+      
+      if (matchingPersonas.length > 0) {
+        const coords = getCaretCoordinates();
+        setDropdownPosition(coords);
+        setShowSuggestions(true);
+      } else {
+        setShowSuggestions(false);
+      }
       setSelectedSuggestionIndex(0);
     } else {
       setShowSuggestions(false);
@@ -89,7 +133,13 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
         className="comment-input"
       />
       {showSuggestions && (
-        <div className="username-suggestions">
+        <div 
+          className="username-suggestions"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`
+          }}
+        >
           {suggestions.map((username, index) => (
             <div
               key={username}
