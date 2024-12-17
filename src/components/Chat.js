@@ -4,6 +4,7 @@ import config from '../config';
 import './Chat.css';
 import CommentInput from './CommentInput';
 import './CommentInput.css';
+import UserInfoPopup from './UserInfoPopup';
 
 let together = null;
 let initError = null;
@@ -242,7 +243,7 @@ Reasoning: This message is directly responding to TechGamer404's previous commen
 
 const STORAGE_KEY = 'reddit_simulator_messages';
 
-const formatMessageWithMentions = (content, personas) => {
+const formatMessageWithMentions = (content, personas, onShowUserInfo) => {
   // Create a regex pattern that matches @username mentions
   const mentionPattern = new RegExp(`@(${personas.map(p => p.username).join('|')})\\b`, 'g');
   
@@ -254,7 +255,24 @@ const formatMessageWithMentions = (content, personas) => {
     const isUsername = personas.some(p => p.username === part);
     
     if (isUsername) {
-      return <span key={index} className="user-mention">@{part}</span>;
+      const handleMouseEnter = (e) => {
+        const rect = e.target.getBoundingClientRect();
+        onShowUserInfo(part, {
+          x: rect.left,
+          y: rect.bottom + 8
+        });
+      };
+
+      return (
+        <span
+          key={index}
+          className="user-mention"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={() => onShowUserInfo(null)}
+        >
+          @{part}
+        </span>
+      );
     }
     return part;
   });
@@ -297,6 +315,8 @@ function Chat({ personas }) {
   const messagesEndRef = useRef(null);
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [hoveredUser, setHoveredUser] = useState(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (initError) {
@@ -875,6 +895,43 @@ Respond to the conversation in character, maintaining consistency with your prof
     }
   };
 
+  const handleShowUserInfo = (username, position) => {
+    if (username) {
+      const user = personas.find(p => p.username === username);
+      if (user) {
+        // Find the latest message or reply from this user
+        let latestTimestamp = null;
+        
+        // Helper function to check messages and their replies
+        const findLatestTimestamp = (items) => {
+          items.forEach(item => {
+            if (item.username === username) {
+              const timestamp = new Date(item.timestamp);
+              if (!latestTimestamp || timestamp > latestTimestamp) {
+                latestTimestamp = timestamp;
+              }
+            }
+            // Check replies
+            if (item.replies) {
+              findLatestTimestamp(item.replies);
+            }
+          });
+        };
+
+        // Search through all messages and their replies
+        findLatestTimestamp(messages);
+
+        setHoveredUser({
+          ...user,
+          timestamp: latestTimestamp ? latestTimestamp.toISOString() : new Date().toISOString()
+        });
+        setPopupPosition(position);
+      }
+    } else {
+      setHoveredUser(null);
+    }
+  };
+
   return (
     <div style={{ 
       margin: 0,
@@ -948,7 +1005,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                 </div>
               </div>
               <div className="comment-content">
-                {formatMessageWithMentions(message.content, personas)}
+                {formatMessageWithMentions(message.content, personas, handleShowUserInfo)}
                 {message.id === messages.length && isStreaming && (
                   <span className="typing-indicator">▊</span>
                 )}
@@ -1012,7 +1069,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                         </div>
                       </div>
                       <div className="comment-content">
-                        {formatMessageWithMentions(reply.content, personas)}
+                        {formatMessageWithMentions(reply.content, personas, handleShowUserInfo)}
                       </div>
                       <div className="comment-actions">
                         <button 
@@ -1074,7 +1131,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                                 </div>
                               </div>
                               <div className="comment-content">
-                                {formatMessageWithMentions(nestedReply.content, personas)}
+                                {formatMessageWithMentions(nestedReply.content, personas, handleShowUserInfo)}
                               </div>
                               <div className="comment-actions">
                                 <button className="action-button">
@@ -1111,6 +1168,12 @@ Respond to the conversation in character, maintaining consistency with your prof
           <div ref={messagesEndRef} />
         </div>
       </div>
+      {hoveredUser && (
+        <UserInfoPopup
+          user={hoveredUser}
+          position={popupPosition}
+        />
+      )}
       {generatingPersona && (
         <div className="status-popup">
           <div className="spinner" />
