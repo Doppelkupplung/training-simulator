@@ -12,9 +12,6 @@ function Navbar() {
         <div className="navbar-links">
           <a href="#chat">Chat</a>
           <a href="#personas">Persona Builder</a>
-          <a href="#scenarios">Scenarios</a>
-          <a href="#history">Chat History</a>
-          <a href="#settings">Settings</a>
         </div>
       </nav>
     </>

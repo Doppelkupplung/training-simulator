@@ -101,12 +101,6 @@ function App() {
         );
       case 'chat':
         return <Chat personas={personas} />;
-      case 'scenarios':
-        return <div>Scenarios Page</div>;
-      case 'history':
-        return <div>Chat History Page</div>;
-      case 'settings':
-        return <div>Settings Page</div>;
       default:
         return <Chat personas={personas} />;
     }

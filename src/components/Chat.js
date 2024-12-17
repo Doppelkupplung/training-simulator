@@ -151,7 +151,9 @@ function Chat({ personas }) {
       karma: 1000000,
       timestamp: new Date().toISOString(),
       replies: [],
-      isReplyOpen: false
+      isReplyOpen: false,
+      upvotes: 1,
+      downvotes: 0
     }
   ]);
   const [input, setInput] = useState('');
@@ -181,6 +183,38 @@ function Chat({ personas }) {
     ));
   };
 
+  const handleVote = (messageId, isUpvote, isReply = false, parentId = null) => {
+    setMessages(prev => {
+      if (isReply) {
+        return prev.map(msg => 
+          msg.id === parentId 
+            ? {
+                ...msg,
+                replies: msg.replies.map(reply =>
+                  reply.id === messageId
+                    ? {
+                        ...reply,
+                        upvotes: isUpvote ? reply.upvotes + 1 : reply.upvotes,
+                        downvotes: !isUpvote ? reply.downvotes + 1 : reply.downvotes
+                      }
+                    : reply
+                )
+              }
+            : msg
+        );
+      }
+      return prev.map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              upvotes: isUpvote ? msg.upvotes + 1 : msg.upvotes,
+              downvotes: !isUpvote ? msg.downvotes + 1 : msg.downvotes
+            }
+          : msg
+      );
+    });
+  };
+
   const handleReply = async (messageId, replyContent) => {
     if (!replyContent.trim()) return;
 
@@ -192,7 +226,9 @@ function Chat({ personas }) {
       karma: 1,
       timestamp: new Date().toISOString(),
       replies: [],
-      isReplyOpen: false
+      isReplyOpen: false,
+      upvotes: 0,
+      downvotes: 0
     };
 
     setMessages(prev => prev.map(msg => 
@@ -274,7 +310,9 @@ Respond to the conversation in character, maintaining consistency with your prof
           karma: respondingPersona.karma,
           timestamp: new Date().toISOString(),
           replies: [],
-          isReplyOpen: false
+          isReplyOpen: false,
+          upvotes: 0,
+          downvotes: 0
         }]);
 
         // Stream the response for main message
@@ -307,7 +345,9 @@ Respond to the conversation in character, maintaining consistency with your prof
                   karma: respondingPersona.karma,
                   timestamp: new Date().toISOString(),
                   replies: [],
-                  isReplyOpen: false
+                  isReplyOpen: false,
+                  upvotes: 0,
+                  downvotes: 0
                 }]
               }
             : msg
@@ -328,7 +368,9 @@ Respond to the conversation in character, maintaining consistency with your prof
           karma: 1000000,
           timestamp: new Date().toISOString(),
           replies: [],
-          isReplyOpen: false
+          isReplyOpen: false,
+          upvotes: 0,
+          downvotes: 0
         }]);
       }
     } finally {
@@ -353,7 +395,9 @@ Respond to the conversation in character, maintaining consistency with your prof
       karma: 1,
       timestamp: new Date().toISOString(),
       replies: [],
-      isReplyOpen: false
+      isReplyOpen: false,
+      upvotes: 0,
+      downvotes: 0
     }]);
 
     // Generate AI response
@@ -416,11 +460,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                 )}
               </div>
               <div className="comment-actions">
-                <button className="action-button">
-                  <span className="arrow-up">▲</span> Upvote
+                <button 
+                  className="action-button"
+                  onClick={() => handleVote(message.id, true)}
+                >
+                  <span className="arrow-up">▲</span> {message.upvotes}
                 </button>
-                <button className="action-button">
-                  <span className="arrow-down">▼</span> Downvote
+                <button 
+                  className="action-button"
+                  onClick={() => handleVote(message.id, false)}
+                >
+                  <span className="arrow-down">▼</span> {message.downvotes}
                 </button>
                 <button 
                   className="action-button"
@@ -467,11 +517,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                         {reply.content}
                       </div>
                       <div className="comment-actions">
-                        <button className="action-button">
-                          <span className="arrow-up">▲</span> Upvote
+                        <button 
+                          className="action-button"
+                          onClick={() => handleVote(reply.id, true, true, message.id)}
+                        >
+                          <span className="arrow-up">▲</span> {reply.upvotes}
                         </button>
-                        <button className="action-button">
-                          <span className="arrow-down">▼</span> Downvote
+                        <button 
+                          className="action-button"
+                          onClick={() => handleVote(reply.id, false, true, message.id)}
+                        >
+                          <span className="arrow-down">▼</span> {reply.downvotes}
                         </button>
                         <button className="action-button">Reply</button>
                         <button className="action-button">Share</button>
