@@ -17,15 +17,10 @@ try {
   initError = error.message;
 }
 
-const selectBestPersona = async (userMessage, personas) => {
-  if (!personas || personas.length === 0) {
-    return {
-      username: 'DefaultRedditor',
-      karma: 100,
-      personality: 'Helpful and friendly',
-      interests: 'General discussion',
-      writingStyle: 'Casual and informative'
-    };
+const selectBestPersona = async (userMessage, availablePersonas) => {
+  if (!availablePersonas || availablePersonas.length === 0) {
+    console.log('No available personas to select from');
+    return null;
   }
 
   try {
@@ -35,7 +30,7 @@ const selectBestPersona = async (userMessage, personas) => {
 Message to analyze: "${userMessage}"
 
 Available personas:
-${personas.map((p, i) => `
+${availablePersonas.map((p, i) => `
 ${i + 1}. Username: ${p.username}
    Interests & Expertise: ${p.interests}`).join('\n')}
 
@@ -80,7 +75,7 @@ Reasoning: Message discusses gaming strategies
     // Debug the full selection process
     console.log('\n=== FULL PERSONA SELECTION DEBUG ===');
     console.log('User Message:', userMessage);
-    console.log('Available Personas:', personas.map((p, i) => ({
+    console.log('Available Personas:', availablePersonas.map((p, i) => ({
       index: i + 1,
       username: p.username,
       interests: p.interests
@@ -115,28 +110,29 @@ Reasoning: Message discusses gaming strategies
     
     console.log('\nSelection Results:');
     console.log('Final selected index:', selectedIndex);
-    console.log('Valid index range: 0 to', personas.length - 1);
+    console.log('Valid index range: 0 to', availablePersonas.length - 1);
     
-    // Return the selected persona or fall back to first persona if parsing fails
-    if (selectedIndex >= 0 && selectedIndex < personas.length) {
-      const selectedPersona = personas[selectedIndex];
+    // Return the selected persona or fall back to random persona if parsing fails
+    if (selectedIndex >= 0 && selectedIndex < availablePersonas.length) {
+      const selectedPersona = availablePersonas[selectedIndex];
       console.log('\nSUCCESS: Selected persona', selectedIndex + 1, ':', selectedPersona.username);
       console.log('=================================\n');
       return selectedPersona;
     } else {
-      console.warn('\nFAILED to select valid persona:');
-      console.warn('- Last line found:', lastLine);
-      console.warn('- Parsed index:', selectedIndex);
-      console.warn('- Valid range:', 0, 'to', personas.length - 1);
-      console.warn('Falling back to first persona:', personas[0].username);
+      // Instead of falling back to first persona, select a random one from available personas
+      const randomIndex = Math.floor(Math.random() * availablePersonas.length);
+      const randomPersona = availablePersonas[randomIndex];
+      console.warn('\nFAILED to select valid persona, using random selection:');
+      console.warn('- Selected random persona:', randomPersona.username);
       console.log('=================================\n');
-      return personas[0];
+      return randomPersona;
     }
 
   } catch (error) {
     console.error('Error selecting persona:', error);
-    // Fallback to first persona if there's an error
-    return personas[0];
+    // Fallback to random persona if there's an error
+    const randomIndex = Math.floor(Math.random() * availablePersonas.length);
+    return availablePersonas[randomIndex];
   }
 };
 
@@ -175,6 +171,7 @@ function Chat({ personas }) {
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(initError);
+  const [generatingPersona, setGeneratingPersona] = useState(null);
   const messagesEndRef = useRef(null);
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -247,7 +244,107 @@ function Chat({ personas }) {
     });
   };
 
-  const generateResponse = async (userMessage, parentId = null, replyToReplyId = null) => {
+  const getNestingLevel = (parentId, replyToReplyId) => {
+    if (!parentId) return 0; // Main message
+    
+    const parentMessage = messages.find(m => m.id === parentId);
+    if (!parentMessage) return 0;
+    
+    if (!replyToReplyId) return 1; // Direct reply to main message
+    
+    const reply = parentMessage.replies.find(r => r.id === replyToReplyId);
+    if (!reply) return 1;
+    
+    return reply.replies ? 3 : 2; // If reply already has replies, it's level 3, otherwise level 2
+  };
+
+  const generateRandomReply = async (messageContent, messageId, parentId = null, aiResponseCount = 1) => {
+    // Stop if we've reached 2 consecutive AI responses
+    if (aiResponseCount >= 2) {
+      console.log('Reached maximum AI response chain (2), stopping');
+      return;
+    }
+
+    // Check nesting level before proceeding
+    const currentNestLevel = getNestingLevel(parentId, messageId);
+    
+    // Find the message that was just replied to
+    const parentMessage = parentId 
+      ? messages.find(m => m.id === parentId)
+      : messages.find(m => m.id === messageId);
+    
+    if (parentMessage) {
+      // Get the username of the last person who replied and the immediate parent
+      let lastResponderUsername = null;
+      let immediateParentUsername = null;
+      let targetMessageId;
+      let targetParentId;
+      
+      if (currentNestLevel >= 3) {
+        // At max nesting level, stay in the same layer by using the parent's parent
+        const reply = parentMessage.replies?.find(r => r.id === messageId);
+        if (reply) {
+          lastResponderUsername = reply.username;
+          immediateParentUsername = reply.username;
+          targetMessageId = reply.id;
+          targetParentId = parentId;
+        } else {
+          lastResponderUsername = parentMessage.username;
+          immediateParentUsername = parentMessage.username;
+          targetMessageId = messageId;
+          targetParentId = parentId;
+        }
+      } else if (parentId && messageId) {
+        // For nested replies, find the last reply in the chain
+        const reply = parentMessage.replies?.find(r => r.id === messageId);
+        if (reply?.replies?.length > 0) {
+          const lastNestedReply = reply.replies[reply.replies.length - 1];
+          lastResponderUsername = lastNestedReply.username;
+          immediateParentUsername = reply.username;
+        } else {
+          lastResponderUsername = reply?.username;
+          immediateParentUsername = reply?.username;
+        }
+        targetMessageId = messageId;
+        targetParentId = parentId;
+      } else {
+        // For direct replies, get the last reply
+        const replies = parentMessage.replies || [];
+        lastResponderUsername = replies.length > 0 
+          ? replies[replies.length - 1].username 
+          : parentMessage.username;
+        immediateParentUsername = parentMessage.username;
+        targetMessageId = messageId;
+        targetParentId = parentId;
+      }
+      
+      // Filter out both the last responder and the immediate parent from available personas
+      const availablePersonas = personas.filter(p => 
+        p.username !== lastResponderUsername && 
+        p.username !== immediateParentUsername
+      );
+      
+      // 70% chance to generate a reply if we have available personas
+      if (availablePersonas.length > 0 && Math.random() < 0.7) {
+        // Wait a random time between 2-5 seconds before starting the reply
+        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+        
+        // Create a prompt that references the previous message and encourages engagement
+        const replyPrompt = `You are participating in a Reddit thread. Reply to this message in a way that encourages further discussion: "${messageContent}"`;
+        
+        // Generate a reply with the correct parent ID and increment the AI response count
+        if (targetParentId) {
+          // If we have a parentId, this is a nested reply
+          generateResponse(replyPrompt, targetParentId, targetMessageId, true, aiResponseCount + 1);
+        } else {
+          // This is a direct reply to the message
+          generateResponse(replyPrompt, targetMessageId, null, true, aiResponseCount + 1);
+        }
+      }
+    }
+  };
+
+  const generateResponse = async (userMessage, parentId = null, replyToReplyId = null, isRandomReply = false, aiResponseCount = 1) => {
     if (!together) {
       const errorMessage = 'Chat service is not available. Please check your API key configuration.';
       console.error(errorMessage);
@@ -255,17 +352,84 @@ function Chat({ personas }) {
       return;
     }
 
+    // Check if we've reached the maximum AI response chain (except for user-initiated responses)
+    if (isRandomReply && aiResponseCount >= 2) {
+      console.log('Reached maximum AI response chain (2), stopping');
+      return;
+    }
+
+    // Check nesting level and adjust target IDs if needed
+    const currentNestLevel = getNestingLevel(parentId, replyToReplyId);
+    let targetParentId = parentId;
+    let targetReplyToReplyId = replyToReplyId;
+
+    if (currentNestLevel >= 3) {
+      // At level 3, we want to add the reply at the same level
+      // So we keep the same parent ID but use null for replyToReplyId
+      targetReplyToReplyId = null;
+    }
+
     try {
       setIsStreaming(true);
       setError(null);
       
+      // Get the last responder's username
+      let lastResponderUsername = null;
+      let immediateParentUsername = null;
+
+      if (replyToReplyId) {
+        // For nested replies
+        const parentMessage = messages.find(m => m.id === parentId);
+        if (parentMessage) {
+          const reply = parentMessage.replies?.find(r => r.id === replyToReplyId);
+          immediateParentUsername = reply?.username;
+          if (reply?.replies?.length > 0) {
+            lastResponderUsername = reply.replies[reply.replies.length - 1].username;
+          } else {
+            lastResponderUsername = reply?.username;
+          }
+        }
+      } else if (parentId) {
+        // For direct replies
+        const parentMessage = messages.find(m => m.id === parentId);
+        if (parentMessage) {
+          const replies = parentMessage.replies || [];
+          immediateParentUsername = parentMessage.username;
+          lastResponderUsername = replies.length > 0 
+            ? replies[replies.length - 1].username 
+            : parentMessage.username;
+        }
+      } else {
+        // For main thread messages
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          lastResponderUsername = lastMessage.username;
+          immediateParentUsername = lastMessage.username;
+        }
+      }
+      
       // Log available personas
       console.log('Available personas:', personas.map(p => `\n${p.username} (${p.interests})`).join(''));
       
-      // Wait for the persona selection
-      const respondingPersona = await selectBestPersona(userMessage, personas);
+      // Filter out both the last responder and the immediate parent from available personas
+      const availablePersonas = personas.filter(p => 
+        p.username !== lastResponderUsername && 
+        p.username !== immediateParentUsername
+      );
+
+      if (availablePersonas.length === 0) {
+        console.log('No available personas to respond (avoiding self-replies)');
+        return;
+      }
+      
+      // Wait for the persona selection from filtered list
+      const respondingPersona = await selectBestPersona(userMessage, availablePersonas);
+      setGeneratingPersona(respondingPersona);
+      
       console.log('\n=== Persona Selection Results ===');
       console.log('User Message:', userMessage);
+      console.log('Last Responder:', lastResponderUsername);
+      console.log('Immediate Parent:', immediateParentUsername);
       console.log('Selected Persona:', {
         username: respondingPersona.username,
         karma: respondingPersona.karma,
@@ -284,6 +448,36 @@ Writing Style: ${respondingPersona.writingStyle}
 
 Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit formatting and terminology where appropriate. Your response should reflect your interests and expertise.`;
       
+      // Build message history based on the context
+      let messageHistory = [];
+      if (replyToReplyId) {
+        // Find the parent message and its reply chain
+        const parentMessage = messages.find(m => m.id === parentId);
+        if (parentMessage) {
+          messageHistory.push({ role: parentMessage.role, content: parentMessage.content });
+          const reply = parentMessage.replies.find(r => r.id === replyToReplyId);
+          if (reply) {
+            messageHistory.push({ role: reply.role, content: reply.content });
+            // Add any nested replies
+            reply.replies?.forEach(nestedReply => {
+              messageHistory.push({ role: nestedReply.role, content: nestedReply.content });
+            });
+          }
+        }
+      } else if (parentId) {
+        // Find the parent message and its replies
+        const parentMessage = messages.find(m => m.id === parentId);
+        if (parentMessage) {
+          messageHistory.push({ role: parentMessage.role, content: parentMessage.content });
+          parentMessage.replies.forEach(reply => {
+            messageHistory.push({ role: reply.role, content: reply.content });
+          });
+        }
+      } else {
+        // Use all messages for context in main thread
+        messageHistory = messages.map(m => ({ role: m.role, content: m.content }));
+      }
+
       console.log('Generating response for:', userMessage);
       const stream = await together.chat.completions.create({
         model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
@@ -292,7 +486,7 @@ Respond to the conversation in character, maintaining consistency with your prof
             role: 'system',
             content: systemPrompt
           },
-          ...messages.map(m => ({ role: m.role, content: m.content })),
+          ...messageHistory,
           { role: 'user', content: userMessage }
         ],
         stream: true,
@@ -301,25 +495,27 @@ Respond to the conversation in character, maintaining consistency with your prof
       });
 
       let responseContent = '';
+      let newMessageId;
 
-      if (replyToReplyId) {
+      if (targetReplyToReplyId) {
         // For replies to replies, accumulate the content first
         for await (const chunk of stream) {
           const chunkContent = chunk.choices[0]?.delta?.content || '';
           responseContent += chunkContent;
         }
 
+        newMessageId = Date.now();
         // Then add the complete reply to the nested reply
         setMessages(prev => prev.map(msg =>
-          msg.id === parentId
+          msg.id === targetParentId
             ? {
                 ...msg,
                 replies: msg.replies.map(reply =>
-                  reply.id === replyToReplyId
+                  reply.id === targetReplyToReplyId
                     ? {
                         ...reply,
                         replies: [...(reply.replies || []), {
-                          id: Date.now(),
+                          id: newMessageId,
                           role: 'assistant',
                           content: responseContent,
                           username: respondingPersona.username,
@@ -336,20 +532,22 @@ Respond to the conversation in character, maintaining consistency with your prof
               }
             : msg
         ));
-      } else if (parentId) {
+
+      } else if (targetParentId) {
         // For replies, accumulate the content first
         for await (const chunk of stream) {
           const chunkContent = chunk.choices[0]?.delta?.content || '';
           responseContent += chunkContent;
         }
 
+        newMessageId = Date.now();
         // Then add the complete reply to the parent message
         setMessages(prev => prev.map(msg => 
-          msg.id === parentId 
+          msg.id === targetParentId 
             ? { 
                 ...msg, 
                 replies: [...msg.replies, {
-                  id: Date.now(),
+                  id: newMessageId,
                   role: 'assistant',
                   content: responseContent,
                   username: respondingPersona.username,
@@ -363,11 +561,12 @@ Respond to the conversation in character, maintaining consistency with your prof
               }
             : msg
         ));
+
       } else {
         // Only create a new main message if this isn't a reply
-        const responseId = messages.length + 2;
+        newMessageId = messages.length + 2;
         setMessages(prev => [...prev, {
-          id: responseId,
+          id: newMessageId,
           role: 'assistant',
           content: '',
           username: respondingPersona.username,
@@ -384,18 +583,24 @@ Respond to the conversation in character, maintaining consistency with your prof
           const chunkContent = chunk.choices[0]?.delta?.content || '';
           responseContent += chunkContent;
           setMessages(prev => prev.map(msg => 
-            msg.id === responseId 
+            msg.id === newMessageId 
               ? { ...msg, content: msg.content + chunkContent }
               : msg
           ));
         }
       }
+
+      // After any persona responds, maybe generate a random reply with the current AI response count
+      if (respondingPersona.username !== 'AutoModerator') {
+        await generateRandomReply(responseContent, newMessageId, targetParentId, aiResponseCount);
+      }
+
     } catch (error) {
       console.error('Error generating response:', error);
       const errorMessage = error.message || 'Failed to generate response. Please try again.';
       setError(errorMessage);
       
-      if (!parentId) {
+      if (!targetParentId) {
         // Only add error message to main thread if it's not a reply
         setMessages(prev => [...prev, {
           id: messages.length + 2,
@@ -412,6 +617,7 @@ Respond to the conversation in character, maintaining consistency with your prof
       }
     } finally {
       setIsStreaming(false);
+      setGeneratingPersona(null);
     }
   };
 
@@ -499,9 +705,10 @@ Respond to the conversation in character, maintaining consistency with your prof
     setError(null);
     setIsReplying(false);
 
+    const messageId = Date.now();
     // Add user message
     setMessages(prev => [...prev, {
-      id: Date.now(),
+      id: messageId,
       role: 'user',
       content: userMessage,
       username: 'You',
@@ -513,8 +720,37 @@ Respond to the conversation in character, maintaining consistency with your prof
       downvotes: 0
     }]);
 
-    // Generate AI response
-    generateResponse(userMessage);
+    // Try to generate an initial response
+    const tryGenerateInitialResponse = async () => {
+      // 50% chance for initial response
+      if (Math.random() < 0.5) {
+        await generateResponse(userMessage, null, null, false);
+      } else {
+        // If we skip the initial response, try to get a response from a different persona after a delay
+        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+        await generateResponse(userMessage, null, null, true);
+      }
+    };
+
+    tryGenerateInitialResponse();
+  };
+
+  // Add clearMessages function
+  const clearMessages = () => {
+    if (window.confirm('Are you sure you want to clear the entire thread? This cannot be undone.')) {
+      setMessages([{
+        id: 1,
+        role: 'assistant',
+        content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
+        username: 'AutoModerator',
+        karma: 1000000,
+        timestamp: new Date().toISOString(),
+        replies: [],
+        isReplyOpen: false,
+        upvotes: 1,
+        downvotes: 0
+      }]);
+    }
   };
 
   return (
@@ -527,7 +763,15 @@ Respond to the conversation in character, maintaining consistency with your prof
     }}>
       <div className="chat-container">
         <div className="thread-title">
-          <h2>Reddit Thread Simulator</h2>
+          <div className="thread-header">
+            <h2>Reddit Thread Simulator</h2>
+            <button 
+              className="clear-thread-button"
+              onClick={clearMessages}
+            >
+              Clear Thread
+            </button>
+          </div>
           <div className="thread-info">
             <span className="thread-stats">100% Upvoted</span>
             <span className="thread-stats">•</span>
@@ -766,6 +1010,12 @@ Respond to the conversation in character, maintaining consistency with your prof
           <div ref={messagesEndRef} />
         </div>
       </div>
+      {generatingPersona && (
+        <div className="status-popup">
+          <div className="spinner" />
+          <span>u/{generatingPersona.username} is typing...</span>
+        </div>
+      )}
     </div>
   );
 }
