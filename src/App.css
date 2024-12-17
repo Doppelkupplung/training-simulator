@@ -85,3 +85,36 @@ button {
   margin: 0 auto;
   max-width: 1200px;
 }
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #343536;
+  border-radius: 4px;
+  border: 2px solid #0E1113;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4b4f;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Hide scrollbar when not hovering */
+::-webkit-scrollbar-thumb {
+  visibility: hidden;
+}
+
+*:hover > ::-webkit-scrollbar-thumb {
+  visibility: visible;
+}
