@@ -20,6 +20,9 @@ body {
   flex-direction: column;
   background: #0E1113;
   overflow-y: auto;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .navbar {
@@ -48,10 +51,13 @@ body {
 
 .thread-title {
   position: relative;
-  padding: 1.5rem 2rem 0.5rem;
+  padding: 1.5rem 1rem;
   background-color: #0E1113;
   border-bottom: 1px solid #1a1b1e;
   z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .thread-title h2 {
@@ -63,7 +69,7 @@ body {
 .thread-info {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   color: #a6a7ab;
   font-size: 0.9rem;
   margin-bottom: 1rem;
@@ -75,23 +81,24 @@ body {
 
 .chat-messages {
   flex: 1;
-  padding: 20px;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.75rem;
   min-height: 0;
-}
-
-.reddit-comment {
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
-  padding: 0.75rem;
+}
+
+.reddit-comment {
+  width: 100%;
+  padding: 1rem;
   border-radius: 4px;
   background-color: #0E1113;
   border: 1px solid #1a1b1e;
   animation: messageAppear 0.3s ease;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .reddit-comment.user {
@@ -430,10 +437,10 @@ body {
   border: 1px solid #1a1b1e;
   border-radius: 4px;
   background: #0E1113;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
+  margin-left: 0;
+  width: 100%;
   height: 40px;
-  width: 200px;
-  margin-left: 48px;
   position: relative;
 }
 
@@ -523,7 +530,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .clear-thread-button {
