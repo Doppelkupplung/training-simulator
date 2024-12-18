@@ -393,6 +393,9 @@ function Chat({ personas }) {
         : { ...msg, isReplyOpen: false };
     }));
 
+    // Clear replyText when closing any reply form
+    setReplyText('');
+
     // Add setTimeout to wait for the reply form to be rendered
     setTimeout(() => {
       const replyForm = document.querySelector(`[data-message-id="${messageId}"] .reply-form`);
@@ -1343,6 +1346,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                       personas={personas}
                       onSubmit={() => handleSubmitReply(message.id)}
                       onCancel={() => toggleReply(message.id)}
+                      replyToUsername={message.username}
                     />
                   </div>
                 )}
@@ -1418,6 +1422,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                               personas={personas}
                               onSubmit={() => handleSubmitReply(message.id, reply.id)}
                               onCancel={() => toggleReply(message.id, reply.id)}
+                              replyToUsername={reply.username}
                             />
                           </div>
                         )}

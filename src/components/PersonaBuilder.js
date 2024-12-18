@@ -1,7 +1,80 @@
 import React, { useState } from 'react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import Modal from './Modal';
 import './PersonaBuilder.css';
 import Together from "together-ai";
+
+const PersonaCard = ({ persona, index, moveCard, handleEditPersona, handleClonePersona, handleDelete, isCloning }) => {
+  const [{ isDragging }, drag] = useDrag({
+    type: 'PERSONA_CARD',
+    item: { index },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  });
+
+  const [, drop] = useDrop({
+    accept: 'PERSONA_CARD',
+    hover: (item, monitor) => {
+      if (!monitor.canDrop()) return;
+      
+      const dragIndex = item.index;
+      const hoverIndex = index;
+
+      if (dragIndex === hoverIndex) return;
+
+      moveCard(dragIndex, hoverIndex);
+      item.index = hoverIndex;
+    },
+  });
+
+  return (
+    <div 
+      ref={(node) => drag(drop(node))}
+      className={`persona-card ${isDragging ? 'dragging' : ''}`}
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+    >
+      {persona.imageUrl && (
+        <div className="persona-image">
+          <img 
+            src={persona.imageUrl} 
+            alt={`${persona.username}'s avatar`}
+            className="persona-avatar"
+          />
+        </div>
+      )}
+      <div className="persona-content">
+        <h3>u/{persona.username}</h3>
+        <p className="karma">Karma: {persona.karma}</p>
+        <p><strong>Personality:</strong> {persona.personality}</p>
+        <p><strong>Interests:</strong> {persona.interests}</p>
+        <p><strong>Writing Style:</strong> {persona.writingStyle}</p>
+      </div>
+      <div className="persona-actions">
+        <button 
+          className="edit-button"
+          onClick={() => handleEditPersona(persona)}
+        >
+          Edit
+        </button>
+        <button 
+          className="clone-button"
+          onClick={() => handleClonePersona(persona)}
+          disabled={isCloning}
+        >
+          {isCloning ? 'Cloning...' : 'Clone'}
+        </button>
+        <button 
+          className="delete-button"
+          onClick={() => handleDelete(persona)}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+};
 
 function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,6 +89,24 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
+
+  const moveCard = (dragIndex, hoverIndex) => {
+    const newPersonas = [...personas];
+    const dragCard = newPersonas[dragIndex];
+    newPersonas.splice(dragIndex, 1);
+    newPersonas.splice(hoverIndex, 0, dragCard);
+    
+    // Update all personas with their new order
+    const updatedPersonas = newPersonas.map((persona, index) => ({
+      ...persona,
+      order: index
+    }));
+
+    // Update the parent component with all reordered personas
+    updatedPersonas.forEach(persona => {
+      onEditPersona(persona);
+    });
+  };
 
   const handleAddPersona = () => {
     setEditingPersona(null);
@@ -69,7 +160,6 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
         model: "black-forest-labs/FLUX.1-schnell",
         steps: 4,
       });
-      // @ts-ignore
       return response.data[0].url;
     } catch (error) {
       console.error('Error generating image:', error);
@@ -92,10 +182,11 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
         ...formData,
         karma: generateRandomKarma(),
         imageUrl,
+        order: personas.length,
       };
 
       if (editingPersona) {
-        onEditPersona({ ...personaData, id: editingPersona.id });
+        onEditPersona({ ...personaData, id: editingPersona.id, order: editingPersona.order });
       } else {
         onAddPersona(personaData);
       }
@@ -147,14 +238,13 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
       });
 
       const output = response.choices[0].message.content;
-      console.log('Raw LLM Response:', output); // More descriptive debug log
+      console.log('Raw LLM Response:', output);
 
-      // More robust parsing with flexible whitespace
       const personality = output.match(/Personality:\s*(.*?)(?=\n|$)/i)?.[1]?.trim();
       const interests = output.match(/Interests:\s*(.*?)(?=\n|$)/i)?.[1]?.trim();
       const writingStyle = output.match(/Writing Style:\s*(.*?)(?=\n|$)/i)?.[1]?.trim();
 
-      console.log('Parsed fields:', { personality, interests, writingStyle }); // Debug log for parsed fields
+      console.log('Parsed fields:', { personality, interests, writingStyle });
 
       if (!personality || !interests || !writingStyle) {
         console.error('Parsing failed. Response format:', {
@@ -180,11 +270,9 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     setGenerationStatus('Starting generation...');
     
     try {
-      // Generate username
       const username = generateRandomUsername();
       setGenerationStatus('Generating persona details...');
       
-      // Generate persona fields using LLM
       const fields = await generatePersonaFields();
       if (!fields) throw new Error('Failed to generate persona fields');
 
@@ -193,7 +281,6 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
         ...fields
       };
 
-      // Generate image
       setGenerationStatus('Generating avatar image...');
       const imageUrl = await generatePersonaImage(randomPersona.interests);
       if (!imageUrl) throw new Error('Failed to generate image');
@@ -202,6 +289,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
         ...randomPersona,
         karma: generateRandomKarma(),
         imageUrl,
+        order: personas.length,
       };
 
       setGenerationStatus('Adding new persona...');
@@ -210,7 +298,6 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     } catch (error) {
       console.error('Error generating random persona:', error);
       setGenerationStatus(`Error: ${error.message}`);
-      // Keep error message visible for 3 seconds
       setTimeout(() => setGenerationStatus(''), 3000);
     } finally {
       setIsGenerating(false);
@@ -222,24 +309,20 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     setGenerationStatus('Starting clone...');
     
     try {
-      // Generate new username
       const username = generateRandomUsername();
       setGenerationStatus('Generating new personality...');
       
-      // Generate new personality using LLM
       const fields = await generatePersonaFields();
       if (!fields) throw new Error('Failed to generate persona fields');
 
-      // Only use the personality from the generated fields
       const clonedPersona = {
         username,
         personality: fields.personality,
-        interests: persona.interests, // Keep original interests
-        writingStyle: persona.writingStyle, // Keep original writing style
+        interests: persona.interests,
+        writingStyle: persona.writingStyle,
         karma: generateRandomKarma()
       };
 
-      // Generate new image
       setGenerationStatus('Generating new avatar...');
       const imageUrl = await generatePersonaImage(clonedPersona.interests);
       if (!imageUrl) throw new Error('Failed to generate image');
@@ -255,7 +338,6 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
     } catch (error) {
       console.error('Error cloning persona:', error);
       setGenerationStatus(`Error: ${error.message}`);
-      // Keep error message visible for 3 seconds
       setTimeout(() => setGenerationStatus(''), 3000);
     } finally {
       setIsCloning(false);
@@ -263,166 +345,141 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   };
 
   return (
-    <div className="persona-builder">
-      <div className="persona-header">
-        <h2>Persona Builder</h2>
-        <div className="persona-header-buttons">
-          <div className="button-container">
-            <button 
-              className="add-persona-button random"
-              onClick={handleAddRandomPersona}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <div className="loading-spinner">
-                  <span>Generating...</span>
+    <DndProvider backend={HTML5Backend}>
+      <div className="persona-builder">
+        <div className="persona-header">
+          <h2>Persona Builder</h2>
+          <div className="persona-header-buttons">
+            <div className="button-container">
+              <button 
+                className="add-persona-button random"
+                onClick={handleAddRandomPersona}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <div className="loading-spinner">
+                    <span>Generating...</span>
+                  </div>
+                ) : (
+                  'Add Random User'
+                )}
+              </button>
+              {generationStatus && (
+                <div className="generation-status">
+                  {generationStatus}
                 </div>
-              ) : (
-                'Add Random User'
               )}
+            </div>
+            <button className="add-persona-button" onClick={handleAddPersona}>
+              Add Reddit User
             </button>
-            {generationStatus && (
-              <div className="generation-status">
-                {generationStatus}
-              </div>
-            )}
           </div>
-          <button className="add-persona-button" onClick={handleAddPersona}>
-            Add Reddit User
-          </button>
         </div>
-      </div>
-      <div className="personas-list">
-        {personas.length === 0 ? (
-          <div className="empty-state">
-            <p>No Reddit users created yet. Click "Add Reddit User" to get started.</p>
-          </div>
-        ) : (
-          personas.map((persona) => (
-            <div key={persona.id} className="persona-card">
-              {persona.imageUrl && (
-                <div className="persona-image">
-                  <img 
-                    src={persona.imageUrl} 
-                    alt={`${persona.username}'s avatar`}
-                    className="persona-avatar"
-                  />
-                </div>
-              )}
-              <div className="persona-content">
-                <h3>u/{persona.username}</h3>
-                <p className="karma">Karma: {persona.karma}</p>
-                <p><strong>Personality:</strong> {persona.personality}</p>
-                <p><strong>Interests:</strong> {persona.interests}</p>
-                <p><strong>Writing Style:</strong> {persona.writingStyle}</p>
-              </div>
-              <div className="persona-actions">
-                <button 
-                  className="edit-button"
-                  onClick={() => handleEditPersona(persona)}
-                >
-                  Edit
-                </button>
-                <button 
-                  className="clone-button"
-                  onClick={() => handleClonePersona(persona)}
-                  disabled={isCloning}
-                >
-                  {isCloning ? 'Cloning...' : 'Clone'}
-                </button>
-                <button 
-                  className="delete-button"
-                  onClick={() => handleDelete(persona)}
-                >
-                  Delete
-                </button>
+        <div className="personas-list">
+          {personas.length === 0 ? (
+            <div className="empty-state">
+              <p>No Reddit users created yet. Click "Add Reddit User" to get started.</p>
+            </div>
+          ) : (
+            [...personas]
+              .sort((a, b) => (a.order || 0) - (b.order || 0))
+              .map((persona, index) => (
+                <PersonaCard
+                  key={persona.id}
+                  persona={persona}
+                  index={index}
+                  moveCard={moveCard}
+                  handleEditPersona={handleEditPersona}
+                  handleClonePersona={handleClonePersona}
+                  handleDelete={handleDelete}
+                  isCloning={isCloning}
+                />
+              ))
+          )}
+        </div>
+
+        <Modal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          title={editingPersona ? "Edit Reddit User" : "Add New Reddit User"}
+        >
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <div className="username-input">
+                <span className="username-prefix">u/</span>
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="username"
+                />
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-      <Modal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        title={editingPersona ? "Edit Reddit User" : "Add New Reddit User"}
-      >
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <div className="username-input">
-              <span className="username-prefix">u/</span>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={formData.username}
+            <div className="form-group">
+              <label htmlFor="personality">Personality Traits</label>
+              <textarea
+                id="personality"
+                name="personality"
+                value={formData.personality}
                 onChange={handleInputChange}
                 required
-                placeholder="username"
+                placeholder="e.g., Sarcastic, witty, tends to play devil's advocate"
               />
             </div>
-          </div>
-          <div className="form-group">
-            <label htmlFor="personality">Personality Traits</label>
-            <textarea
-              id="personality"
-              name="personality"
-              value={formData.personality}
-              onChange={handleInputChange}
-              required
-              placeholder="e.g., Sarcastic, witty, tends to play devil's advocate"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="interests">Interests & Expertise</label>
-            <textarea
-              id="interests"
-              name="interests"
-              value={formData.interests}
-              onChange={handleInputChange}
-              required
-              placeholder="e.g., Gaming, programming, cryptocurrency, memes"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="writingStyle">Writing Style</label>
-            <textarea
-              id="writingStyle"
-              name="writingStyle"
-              value={formData.writingStyle}
-              onChange={handleInputChange}
-              required
-              placeholder="e.g., Uses lots of emojis, writes in short sentences, frequently uses Reddit slang"
-            />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="cancel" onClick={handleCloseModal}>
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              className="submit"
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <div className="loading-spinner">
-                  <span>Generating...</span>
-                </div>
-              ) : (
-                editingPersona ? "Save Changes" : "Create User"
-              )}
-            </button>
-          </div>
-        </form>
-      </Modal>
+            <div className="form-group">
+              <label htmlFor="interests">Interests & Expertise</label>
+              <textarea
+                id="interests"
+                name="interests"
+                value={formData.interests}
+                onChange={handleInputChange}
+                required
+                placeholder="e.g., Gaming, programming, cryptocurrency, memes"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="writingStyle">Writing Style</label>
+              <textarea
+                id="writingStyle"
+                name="writingStyle"
+                value={formData.writingStyle}
+                onChange={handleInputChange}
+                required
+                placeholder="e.g., Uses lots of emojis, writes in short sentences, frequently uses Reddit slang"
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="cancel" onClick={handleCloseModal}>
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="submit"
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <div className="loading-spinner">
+                    <span>Generating...</span>
+                  </div>
+                ) : (
+                  editingPersona ? "Save Changes" : "Create User"
+                )}
+              </button>
+            </div>
+          </form>
+        </Modal>
 
-      {generatedImageUrl && (
-        <div className="generated-image-preview">
-          <img src={generatedImageUrl} alt="Generated persona" />
-        </div>
-      )}
-    </div>
+        {generatedImageUrl && (
+          <div className="generated-image-preview">
+            <img src={generatedImageUrl} alt="Generated persona" />
+          </div>
+        )}
+      </div>
+    </DndProvider>
   );
 }
 

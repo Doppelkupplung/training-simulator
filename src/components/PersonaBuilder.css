@@ -103,6 +103,7 @@
   gap: 2rem;
   width: 100%;
   height: auto;
+  cursor: move;
 }
 
 .persona-card::before {
@@ -377,5 +378,12 @@ textarea {
 .modal-actions .submit:hover {
   background: #ff5414;
   transform: translateY(-1px);
+}
+
+.persona-card.dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+  border-color: rgba(255, 69, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
  

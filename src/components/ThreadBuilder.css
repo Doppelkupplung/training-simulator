@@ -76,6 +76,12 @@
 .thread-item {
   display: flex;
   flex-direction: column;
+  cursor: move;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.thread-item.dragging {
+  cursor: grabbing;
 }
 
 .thread-card {

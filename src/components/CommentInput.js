@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
-const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel }) => {
+const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel, replyToUsername }) => {
   const [cursorPosition, setCursorPosition] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -11,8 +11,14 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus();
+      // Only prefill username if this is a reply (replyToUsername exists)
+      if (replyToUsername && !value) {
+        const newValue = `@${replyToUsername} `;
+        onChange({ target: { value: newValue } });
+        setCursorPosition(newValue.length);
+      }
     }
-  }, []);
+  }, [replyToUsername, value, onChange]);
 
   useEffect(() => {
     if (textareaRef.current) {
