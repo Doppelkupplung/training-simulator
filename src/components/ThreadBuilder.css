@@ -1,0 +1,172 @@
+.thread-builder {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0E1113;
+}
+
+.thread-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.thread-builder-header h2 {
+  color: #e4e5e7;
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.create-thread-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #ff4500;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.create-thread-button:hover {
+  background-color: #ff5414;
+  transform: translateY(-1px);
+}
+
+.threads-list {
+  background-color: #1a1b1e;
+  border-radius: 8px;
+  padding: 1rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #a6a7ab;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.thread-card {
+  background-color: #25262b;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.thread-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.thread-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.thread-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a6a7ab;
+  font-size: 0.9rem;
+}
+
+.subreddit {
+  color: #ff4500;
+  font-weight: 500;
+}
+
+.dot {
+  color: #4a4b50;
+}
+
+.timestamp {
+  color: #a6a7ab;
+}
+
+.delete-button {
+  padding: 0.5rem 1rem;
+  background-color: #3a2731;
+  color: #ff6b6b;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.delete-button:hover {
+  background-color: #4a2d3a;
+  transform: translateY(-1px);
+}
+
+.thread-title {
+  color: #e4e5e7;
+  font-size: 1.2rem;
+  margin: 0.5rem 0;
+}
+
+.thread-description {
+  color: #a6a7ab;
+  font-size: 0.95rem;
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.thread-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #a6a7ab;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+.subreddit-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.prefix {
+  position: absolute;
+  left: 12px;
+  color: #a6a7ab;
+  font-weight: 500;
+}
+
+.subreddit-input input {
+  padding-left: 32px !important;
+}
+
+/* Scrollbar styles */
+.threads-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.threads-list::-webkit-scrollbar-track {
+  background: #1a1b1f;
+  border-radius: 4px;
+}
+
+.threads-list::-webkit-scrollbar-thumb {
+  background: #3f4044;
+  border-radius: 4px;
+}
+
+.threads-list::-webkit-scrollbar-thumb:hover {
+  background: #4c4d52;
+} 

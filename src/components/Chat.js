@@ -108,7 +108,12 @@ const selectNextPersona = async (userMessage, personas, messageChain, aiResponse
       .join('\n');
 
     // Create the analysis prompt
-    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message.
+    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message in a thread about the 2024 US election.
+
+Thread Context:
+Subreddit: r/politics
+Title: "2024 election thoughts?"
+Description: "What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful."
 
 Recent conversation:
 ${recentMessages}
@@ -122,9 +127,9 @@ ${i + 1}. Username: ${p.username}
 
 Instructions:
 1. Analyze the conversation flow and topic
-2. Select a persona whose interests and expertise match the discussion
+2. Select a persona whose interests and expertise match the discussion about politics and the 2024 election
 3. IMPORTANT: You MUST select from the available personas listed above
-4. Consider conversation continuity but prioritize topic relevance
+4. Consider conversation continuity but prioritize topic relevance and political expertise
 
 Format your response EXACTLY like this:
 Selected Persona: [number]
@@ -496,7 +501,10 @@ function Chat({ personas }) {
         await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
         
         // Create a prompt that references the previous message and encourages engagement
-        const replyPrompt = `You are participating in a Reddit thread. Reply to this message in a way that encourages further discussion: "${messageContent}"`;
+        const replyPrompt = `You are participating in a thread on r/politics titled "2024 election thoughts?" about the upcoming election.
+The thread asks: "What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes."
+
+Reply to this message in a way that encourages further discussion while staying relevant to the election topic: "${messageContent}"`;
         
         // Generate a reply with the correct parent ID and increment the AI response count
         if (targetParentId) {
@@ -650,7 +658,10 @@ Personality: ${selectedPersona.personality}
 Interests: ${selectedPersona.interests}
 Writing Style: ${selectedPersona.writingStyle}
 
-Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise.`;
+You are participating in a thread on r/politics titled "2024 election thoughts?" with the following description:
+"What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful."
+
+Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise while staying relevant to the thread topic.`;
 
       // Use the message chain for context
       const chatMessages = messageChain.map(msg => ({ 
@@ -1010,7 +1021,11 @@ Respond to the conversation in character, maintaining consistency with your prof
       <div className="chat-container">
         <div className="thread-title">
           <div className="thread-header">
-            <h2>Reddit Thread Simulator</h2>
+            <div className="subreddit-info">
+              <span className="subreddit">r/politics</span>
+              <span className="dot">•</span>
+              <span className="post-time">1 yr. ago</span>
+            </div>
             <button 
               className="clear-thread-button"
               onClick={clearMessages}
@@ -1018,10 +1033,14 @@ Respond to the conversation in character, maintaining consistency with your prof
               Clear Thread
             </button>
           </div>
+          <h2>2024 election thoughts?</h2>
+          <div className="post-description">
+            What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful.
+          </div>
           <div className="thread-info">
             <span className="thread-stats">100% Upvoted</span>
             <span className="thread-stats">•</span>
-            <span className="thread-stats">r/ThreadSimulator</span>
+            <span className="thread-stats">r/politics</span>
           </div>
           
           <div className="add-comment-wrapper">

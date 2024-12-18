@@ -62,8 +62,41 @@ body {
 
 .thread-title h2 {
   color: #e4e5e7;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  margin: 0.5rem 0;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.subreddit-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a6a7ab;
+  font-size: 0.8rem;
+}
+
+.subreddit {
+  color: #e4e5e7;
+  font-weight: 500;
+}
+
+.dot {
+  color: #4a4b50;
+}
+
+.post-time {
+  color: #a6a7ab;
+}
+
+.post-author {
+  font-size: 0.8rem;
+  color: #a6a7ab;
   margin-bottom: 0.5rem;
+}
+
+.post-author span {
+  color: #e4e5e7;
 }
 
 .thread-info {
@@ -644,4 +677,14 @@ body {
   width: 100%;
   margin-left: 0;
   position: relative;
-} 
+}
+
+.post-description {
+  color: #e4e5e7;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0.75rem 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #1a1b1e;
+}
+  
