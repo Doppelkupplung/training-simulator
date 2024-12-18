@@ -10,6 +10,12 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
 
   useEffect(() => {
     if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (textareaRef.current) {
       textareaRef.current.selectionStart = cursorPosition;
       textareaRef.current.selectionEnd = cursorPosition;
     }
@@ -86,23 +92,28 @@ const CommentInput = ({ value, onChange, disabled, personas, onSubmit, onCancel 
   };
 
   const handleKeyDown = (e) => {
-    if (!showSuggestions) return;
-
-    if (e.key === 'ArrowDown') {
+    if (showSuggestions) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : prev
+        );
+      } else if (e.key === 'Enter' && showSuggestions) {
+        e.preventDefault();
+        insertSuggestion(suggestions[selectedSuggestionIndex]);
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false);
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      setSelectedSuggestionIndex(prev => 
-        prev < suggestions.length - 1 ? prev + 1 : prev
-      );
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedSuggestionIndex(prev => 
-        prev > 0 ? prev - 1 : prev
-      );
-    } else if (e.key === 'Enter' && showSuggestions) {
-      e.preventDefault();
-      insertSuggestion(suggestions[selectedSuggestionIndex]);
-    } else if (e.key === 'Escape') {
-      setShowSuggestions(false);
+      if (value.trim() && !disabled) {
+        onSubmit();
+      }
     }
   };
 

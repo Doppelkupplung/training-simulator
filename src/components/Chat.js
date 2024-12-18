@@ -1200,17 +1200,17 @@ Respond to the conversation in character, maintaining consistency with your prof
                 <span className="dot">•</span>
                 <span className="post-time">{formatTimestamp(currentThread.createdAt)}</span>
               </div>
-              <button 
-                className="clear-thread-button"
-                onClick={clearMessages}
-              >
-                Clear Thread
-              </button>
             </div>
             <h2>{currentThread.title}</h2>
             <div className="post-description">
               {currentThread.description}
             </div>
+            <button 
+              className="clear-thread-button"
+              onClick={clearMessages}
+            >
+              Clear Thread
+            </button>
             <div className="thread-info">
               <span className="thread-stats">100% Upvoted</span>
               <span className="thread-stats">•</span>

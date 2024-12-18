@@ -7,10 +7,18 @@
   z-index: 900;
 }
 
-.search-container {
+.thread-search-wrapper {
   max-width: 800px;
   margin: 0 auto;
   display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
   gap: 10px;
   background-color: #0E1113;
   border: 1px solid #1a1b1e;
@@ -18,6 +26,31 @@
   padding: 0.25rem;
   position: relative;
   z-index: 901;
+}
+
+.reddit-branding {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reddit-logo {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.reddit-alien {
+  width: 100%;
+  height: 100%;
+}
+
+.reddit-text {
+  color: #FF4500;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
 .search-input {

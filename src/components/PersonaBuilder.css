@@ -84,13 +84,13 @@
   color: #a6a7ab;
   text-align: center;
   font-size: 1.1rem;
-  background: #25262b;
+  background: #1a1b1e;
   border-radius: 8px;
   padding: 2rem;
 }
 
 .persona-card {
-  background-color: #25262b;
+  background-color: #1a1b1e;
   border-radius: 12px;
   padding: 1.5rem;
   transition: all 0.2s ease;

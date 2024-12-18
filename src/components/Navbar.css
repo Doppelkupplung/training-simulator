@@ -11,8 +11,10 @@
   top: -64px;
   left: 0;
   right: 0;
-  transition: top 0.3s ease;
+  transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
+  backdrop-filter: blur(8px);
+  background-color: rgba(14, 17, 19, 0.95);
 }
 
 .navbar-trigger {
@@ -20,13 +22,15 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 20px;
+  height: 24px;
   z-index: 999;
+  background: linear-gradient(to bottom, rgba(14, 17, 19, 0.1) 0%, transparent 100%);
+  transition: opacity 0.3s ease;
 }
 
-.navbar-trigger:hover + .navbar,
-.navbar:hover {
-  top: 0;
+.navbar-trigger:hover,
+.navbar:hover ~ .navbar-trigger {
+  opacity: 0;
 }
 
 .navbar-brand h1 {

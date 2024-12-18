@@ -68,7 +68,7 @@
   color: #a6a7ab;
   text-align: center;
   font-size: 1.1rem;
-  background: #25262b;
+  background: #1a1b1e;
   border-radius: 8px;
   padding: 2rem;
 }
@@ -79,7 +79,7 @@
 }
 
 .thread-card {
-  background-color: #25262b;
+  background-color: #1a1b1e;
   border-radius: 16px;
   padding: 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -145,14 +145,14 @@
 }
 
 .clear-button {
-  color: #ffa500;
-  border: 1px solid rgba(255, 165, 0, 0.2);
+  color: #ff4500;
+  border: 1px solid rgba(255, 69, 0, 0.2);
   width: 120px;
 }
 
 .clear-button:hover {
-  background: rgba(255, 165, 0, 0.1);
-  border-color: rgba(255, 165, 0, 0.3);
+  background: rgba(255, 69, 0, 0.1);
+  border-color: rgba(255, 69, 0, 0.3);
 }
 
 .delete-button {

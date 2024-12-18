@@ -23,6 +23,7 @@ body {
   margin: 0 auto;
   width: 100%;
   position: relative;
+  transition: padding-top 0.3s ease;
 }
 
 .chat-container::-webkit-scrollbar {
@@ -597,19 +598,23 @@ body {
 }
 
 .clear-thread-button {
-  background-color: #ff4444;
-  color: white;
-  border: none;
+  background-color: transparent;
+  color: #ff4500;
+  border: 1px solid rgba(255, 69, 0, 0.2);
   border-radius: 4px;
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  width: fit-content;
 }
 
 .clear-thread-button:hover {
-  background-color: #ff6666;
+  background-color: rgba(255, 69, 0, 0.1);
+  border-color: rgba(255, 69, 0, 0.3);
 }
 
 .status-popup {
@@ -715,6 +720,8 @@ body {
   overflow-y: auto;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+  transition: max-height 0.3s ease;
+  max-height: calc(100vh - var(--navbar-offset, 0px));
 }
 
 .scrollable-area::-webkit-scrollbar {
@@ -724,5 +731,15 @@ body {
 .reddit-comment.user .comment-avatar,
 .comment-user-info img[alt="AutoModerator's avatar"] {
   display: none; /* Hide avatar for user messages and AutoModerator */
+}
+
+.navbar-trigger:hover ~ .chat-container,
+.navbar:hover ~ .chat-container {
+  padding-top: 64px;
+}
+
+.navbar-trigger:hover ~ .chat-container .scrollable-area,
+.navbar:hover ~ .chat-container .scrollable-area {
+  --navbar-offset: 64px;
 }
   
