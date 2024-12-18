@@ -7,7 +7,6 @@ function Navbar() {
       <div className="navbar-trigger" />
       <nav className="navbar">
         <div className="navbar-brand">
-          <h1>Chat Simulator</h1>
         </div>
         <div className="navbar-links">
           <a href="#chat">Chat</a>

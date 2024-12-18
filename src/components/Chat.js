@@ -258,9 +258,9 @@ const formatMessageWithMentions = (content, personas, onShowUserInfo) => {
 function Chat({ personas }) {
   const [currentThread, setCurrentThread] = useState({
     id: 'default',
-    subreddit: 'politics',
-    title: '2024 election thoughts?',
-    description: 'What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful.',
+    subreddit: 'townhall',
+    title: 'Town Hall',
+    description: 'Welcome to the Town Hall! This is a place for open discussion and community dialogue. Feel free to share your thoughts, ask questions, or start a conversation on any topic.',
     createdAt: new Date().toISOString()
   });
 
@@ -299,6 +299,32 @@ function Chat({ personas }) {
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredMessages, setFilteredMessages] = useState([]);
+
+  // Add event listener for thread cleared event
+  useEffect(() => {
+    const handleThreadCleared = (event) => {
+      const { threadId } = event.detail;
+      if (threadId === currentThread.id) {
+        // Reset messages to default state
+        const defaultMessage = {
+          id: 1,
+          role: 'assistant',
+          content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
+          username: 'AutoModerator',
+          karma: 1000000,
+          timestamp: new Date().toISOString(),
+          replies: [],
+          isReplyOpen: false,
+          upvotes: 1,
+          downvotes: 0
+        };
+        setMessages([defaultMessage]);
+      }
+    };
+
+    window.addEventListener('threadCleared', handleThreadCleared);
+    return () => window.removeEventListener('threadCleared', handleThreadCleared);
+  }, [currentThread.id]);
 
   // Save messages to localStorage whenever they change, using thread-specific key
   useEffect(() => {
@@ -1166,292 +1192,294 @@ Respond to the conversation in character, maintaining consistency with your prof
           onSearch={setSearchQuery} 
           onThreadSelect={handleThreadSelect}
         />
-        <div className="thread-title">
-          <div className="thread-header">
-            <div className="subreddit-info">
-              <span className="subreddit">r/{currentThread.subreddit}</span>
-              <span className="dot">•</span>
-              <span className="post-time">{formatTimestamp(currentThread.createdAt)}</span>
+        <div className="scrollable-area">
+          <div className="thread-title">
+            <div className="thread-header">
+              <div className="subreddit-info">
+                <span className="subreddit">r/{currentThread.subreddit}</span>
+                <span className="dot">•</span>
+                <span className="post-time">{formatTimestamp(currentThread.createdAt)}</span>
+              </div>
+              <button 
+                className="clear-thread-button"
+                onClick={clearMessages}
+              >
+                Clear Thread
+              </button>
             </div>
-            <button 
-              className="clear-thread-button"
-              onClick={clearMessages}
-            >
-              Clear Thread
-            </button>
-          </div>
-          <h2>{currentThread.title}</h2>
-          <div className="post-description">
-            {currentThread.description}
-          </div>
-          <div className="thread-info">
-            <span className="thread-stats">100% Upvoted</span>
-            <span className="thread-stats">•</span>
-            <span className="thread-stats">r/{currentThread.subreddit}</span>
-          </div>
-          
-          <div className="add-comment-wrapper">
-            <button 
-              className="add-comment-button"
-              onClick={handleAddComment}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Add a comment
-            </button>
+            <h2>{currentThread.title}</h2>
+            <div className="post-description">
+              {currentThread.description}
+            </div>
+            <div className="thread-info">
+              <span className="thread-stats">100% Upvoted</span>
+              <span className="thread-stats">•</span>
+              <span className="thread-stats">r/{currentThread.subreddit}</span>
+            </div>
             
-            {isReplying && (
-              <div className="reply-input-container">
-                <CommentInput
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  disabled={isStreaming}
-                  personas={personas}
-                  onSubmit={handleSubmitComment}
-                  onCancel={() => setIsReplying(false)}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="chat-messages">
-          {filteredMessages.map((message) => (
-            <div 
-              key={message.id} 
-              className={`reddit-comment ${message.role}`}
-              data-message-id={message.id}
-            >
-              <div className="comment-header">
-                <div className="comment-user-info">
-                  {message.role === 'assistant' && (
-                    <img 
-                      src={personas.find(p => p.username === message.username)?.imageUrl || '/default-avatar.png'} 
-                      alt={`${message.username}'s avatar`}
-                      className="comment-avatar"
-                    />
-                  )}
-                  <div className="comment-metadata">
-                    <span 
-                      className="username"
-                      onMouseEnter={(e) => {
-                        const rect = e.target.getBoundingClientRect();
-                        handleShowUserInfo(message.username, {
-                          x: rect.left,
-                          y: rect.bottom + 8
-                        });
-                      }}
-                      onMouseLeave={() => handleShowUserInfo(null)}
-                    >u/{message.username}</span>
-                    <span className="karma-dot">•</span>
-                    <span className="karma">{message.karma} karma</span>
-                    <span className="karma-dot">•</span>
-                    <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="comment-content">
-                {formatMessageWithMentions(message.content, personas, handleShowUserInfo)}
-                {message.id === messages.length && isStreaming && (
-                  <span className="typing-indicator">▊</span>
-                )}
-              </div>
-              <div className="comment-actions">
-                <button 
-                  className="action-button"
-                  onClick={() => handleVote(message.id, true)}
-                >
-                  <span className="arrow-up">▲</span> {message.upvotes}
-                </button>
-                <button 
-                  className="action-button"
-                  onClick={() => handleVote(message.id, false)}
-                >
-                  <span className="arrow-down">▼</span> {message.downvotes}
-                </button>
-                <button 
-                  className="action-button"
-                  onClick={() => toggleReply(message.id)}
-                >
-                  Reply
-                </button>
-                <button className="action-button">Share</button>
-                <button className="action-button">Report</button>
-              </div>
-
-              {message.isReplyOpen && (
-                <div className="reply-form">
+            <div className="add-comment-wrapper">
+              <button 
+                className="add-comment-button"
+                onClick={handleAddComment}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Add a comment
+              </button>
+              
+              {isReplying && (
+                <div className="reply-input-container">
                   <CommentInput
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     disabled={isStreaming}
                     personas={personas}
-                    onSubmit={() => handleSubmitReply(message.id)}
-                    onCancel={() => toggleReply(message.id)}
+                    onSubmit={handleSubmitComment}
+                    onCancel={() => setIsReplying(false)}
                   />
                 </div>
               )}
+            </div>
+          </div>
+          
+          <div className="chat-messages">
+            {filteredMessages.map((message) => (
+              <div 
+                key={message.id} 
+                className={`reddit-comment ${message.role}`}
+                data-message-id={message.id}
+              >
+                <div className="comment-header">
+                  <div className="comment-user-info">
+                    {message.role === 'assistant' && (
+                      <img 
+                        src={personas.find(p => p.username === message.username)?.imageUrl || '/default-avatar.png'} 
+                        alt={`${message.username}'s avatar`}
+                        className="comment-avatar"
+                      />
+                    )}
+                    <div className="comment-metadata">
+                      <span 
+                        className="username"
+                        onMouseEnter={(e) => {
+                          const rect = e.target.getBoundingClientRect();
+                          handleShowUserInfo(message.username, {
+                            x: rect.left,
+                            y: rect.bottom + 8
+                          });
+                        }}
+                        onMouseLeave={() => handleShowUserInfo(null)}
+                      >u/{message.username}</span>
+                      <span className="karma-dot">•</span>
+                      <span className="karma">{message.karma} karma</span>
+                      <span className="karma-dot">•</span>
+                      <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="comment-content">
+                  {formatMessageWithMentions(message.content, personas, handleShowUserInfo)}
+                  {message.id === messages.length && isStreaming && (
+                    <span className="typing-indicator">▊</span>
+                  )}
+                </div>
+                <div className="comment-actions">
+                  <button 
+                    className="action-button"
+                    onClick={() => handleVote(message.id, true)}
+                  >
+                    <span className="arrow-up">▲</span> {message.upvotes}
+                  </button>
+                  <button 
+                    className="action-button"
+                    onClick={() => handleVote(message.id, false)}
+                  >
+                    <span className="arrow-down">▼</span> {message.downvotes}
+                  </button>
+                  <button 
+                    className="action-button"
+                    onClick={() => toggleReply(message.id)}
+                  >
+                    Reply
+                  </button>
+                  <button className="action-button">Share</button>
+                  <button className="action-button">Report</button>
+                </div>
 
-              {message.replies.length > 0 && (
-                <div className="nested-replies">
-                  {message.replies.map(reply => (
-                    <div 
-                      key={reply.id} 
-                      className={`reddit-comment ${reply.role}`}
-                      data-message-id={reply.id}
-                    >
-                      <div className="comment-header">
-                        <div className="comment-user-info">
-                          {reply.role === 'assistant' && (
-                            <img 
-                              src={personas.find(p => p.username === reply.username)?.imageUrl || '/default-avatar.png'} 
-                              alt={`${reply.username}'s avatar`}
-                              className="comment-avatar"
-                            />
-                          )}
-                          <div className="comment-metadata">
-                            <span 
-                              className="username"
-                              onMouseEnter={(e) => {
-                                const rect = e.target.getBoundingClientRect();
-                                handleShowUserInfo(reply.username, {
-                                  x: rect.left,
-                                  y: rect.bottom + 8
-                                });
-                              }}
-                              onMouseLeave={() => handleShowUserInfo(null)}
-                            >u/{reply.username}</span>
-                            <span className="karma-dot">•</span>
-                            <span className="karma">{reply.karma} karma</span>
-                            <span className="karma-dot">•</span>
-                            <span className="timestamp">{formatTimestamp(reply.timestamp)}</span>
+                {message.isReplyOpen && (
+                  <div className="reply-form">
+                    <CommentInput
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      disabled={isStreaming}
+                      personas={personas}
+                      onSubmit={() => handleSubmitReply(message.id)}
+                      onCancel={() => toggleReply(message.id)}
+                    />
+                  </div>
+                )}
+
+                {message.replies.length > 0 && (
+                  <div className="nested-replies">
+                    {message.replies.map(reply => (
+                      <div 
+                        key={reply.id} 
+                        className={`reddit-comment ${reply.role}`}
+                        data-message-id={reply.id}
+                      >
+                        <div className="comment-header">
+                          <div className="comment-user-info">
+                            {reply.role === 'assistant' && (
+                              <img 
+                                src={personas.find(p => p.username === reply.username)?.imageUrl || '/default-avatar.png'} 
+                                alt={`${reply.username}'s avatar`}
+                                className="comment-avatar"
+                              />
+                            )}
+                            <div className="comment-metadata">
+                              <span 
+                                className="username"
+                                onMouseEnter={(e) => {
+                                  const rect = e.target.getBoundingClientRect();
+                                  handleShowUserInfo(reply.username, {
+                                    x: rect.left,
+                                    y: rect.bottom + 8
+                                  });
+                                }}
+                                onMouseLeave={() => handleShowUserInfo(null)}
+                              >u/{reply.username}</span>
+                              <span className="karma-dot">•</span>
+                              <span className="karma">{reply.karma} karma</span>
+                              <span className="karma-dot">•</span>
+                              <span className="timestamp">{formatTimestamp(reply.timestamp)}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="comment-content">
-                        {formatMessageWithMentions(reply.content, personas, handleShowUserInfo)}
-                      </div>
-                      <div className="comment-actions">
-                        <button 
-                          className="action-button"
-                          onClick={() => handleVote(reply.id, true, true, message.id)}
-                        >
-                          <span className="arrow-up">▲</span> {reply.upvotes}
-                        </button>
-                        <button 
-                          className="action-button"
-                          onClick={() => handleVote(reply.id, false, true, message.id)}
-                        >
-                          <span className="arrow-down">▼</span> {reply.downvotes}
-                        </button>
-                        <button 
-                          className="action-button"
-                          onClick={() => toggleReply(message.id, reply.id)}
-                        >
-                          Reply
-                        </button>
-                        <button className="action-button">Share</button>
-                        <button className="action-button">Report</button>
-                      </div>
-
-                      {reply.isReplyOpen && (
-                        <div className="reply-form">
-                          <CommentInput
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            disabled={isStreaming}
-                            personas={personas}
-                            onSubmit={() => handleSubmitReply(message.id, reply.id)}
-                            onCancel={() => toggleReply(message.id, reply.id)}
-                          />
+                        <div className="comment-content">
+                          {formatMessageWithMentions(reply.content, personas, handleShowUserInfo)}
                         </div>
-                      )}
+                        <div className="comment-actions">
+                          <button 
+                            className="action-button"
+                            onClick={() => handleVote(reply.id, true, true, message.id)}
+                          >
+                            <span className="arrow-up">▲</span> {reply.upvotes}
+                          </button>
+                          <button 
+                            className="action-button"
+                            onClick={() => handleVote(reply.id, false, true, message.id)}
+                          >
+                            <span className="arrow-down">▼</span> {reply.downvotes}
+                          </button>
+                          <button 
+                            className="action-button"
+                            onClick={() => toggleReply(message.id, reply.id)}
+                          >
+                            Reply
+                          </button>
+                          <button className="action-button">Share</button>
+                          <button className="action-button">Report</button>
+                        </div>
 
-                      {/* Render nested replies */}
-                      {reply.replies && reply.replies.length > 0 && (
-                        <div className="nested-replies">
-                          {reply.replies.map(nestedReply => (
-                            <div 
-                              key={nestedReply.id} 
-                              className={`reddit-comment ${nestedReply.role}`}
-                              data-message-id={nestedReply.id}
-                            >
-                              <div className="comment-header">
-                                <div className="comment-user-info">
-                                  {nestedReply.role === 'assistant' && (
-                                    <img 
-                                      src={personas.find(p => p.username === nestedReply.username)?.imageUrl || '/default-avatar.png'} 
-                                      alt={`${nestedReply.username}'s avatar`}
-                                      className="comment-avatar"
-                                    />
-                                  )}
-                                  <div className="comment-metadata">
-                                    <span 
-                                      className="username"
-                                      onMouseEnter={(e) => {
-                                        const rect = e.target.getBoundingClientRect();
-                                        handleShowUserInfo(nestedReply.username, {
-                                          x: rect.left,
-                                          y: rect.bottom + 8
-                                        });
-                                      }}
-                                      onMouseLeave={() => handleShowUserInfo(null)}
-                                    >u/{nestedReply.username}</span>
-                                    <span className="karma-dot">•</span>
-                                    <span className="karma">{nestedReply.karma} karma</span>
-                                    <span className="karma-dot">•</span>
-                                    <span className="timestamp">{formatTimestamp(nestedReply.timestamp)}</span>
+                        {reply.isReplyOpen && (
+                          <div className="reply-form">
+                            <CommentInput
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              disabled={isStreaming}
+                              personas={personas}
+                              onSubmit={() => handleSubmitReply(message.id, reply.id)}
+                              onCancel={() => toggleReply(message.id, reply.id)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Render nested replies */}
+                        {reply.replies && reply.replies.length > 0 && (
+                          <div className="nested-replies">
+                            {reply.replies.map(nestedReply => (
+                              <div 
+                                key={nestedReply.id} 
+                                className={`reddit-comment ${nestedReply.role}`}
+                                data-message-id={nestedReply.id}
+                              >
+                                <div className="comment-header">
+                                  <div className="comment-user-info">
+                                    {nestedReply.role === 'assistant' && (
+                                      <img 
+                                        src={personas.find(p => p.username === nestedReply.username)?.imageUrl || '/default-avatar.png'} 
+                                        alt={`${nestedReply.username}'s avatar`}
+                                        className="comment-avatar"
+                                      />
+                                    )}
+                                    <div className="comment-metadata">
+                                      <span 
+                                        className="username"
+                                        onMouseEnter={(e) => {
+                                          const rect = e.target.getBoundingClientRect();
+                                          handleShowUserInfo(nestedReply.username, {
+                                            x: rect.left,
+                                            y: rect.bottom + 8
+                                          });
+                                        }}
+                                        onMouseLeave={() => handleShowUserInfo(null)}
+                                      >u/{nestedReply.username}</span>
+                                      <span className="karma-dot">•</span>
+                                      <span className="karma">{nestedReply.karma} karma</span>
+                                      <span className="karma-dot">•</span>
+                                      <span className="timestamp">{formatTimestamp(nestedReply.timestamp)}</span>
+                                    </div>
                                   </div>
                                 </div>
+                                <div className="comment-content">
+                                  {formatMessageWithMentions(nestedReply.content, personas, handleShowUserInfo)}
+                                </div>
+                                <div className="comment-actions">
+                                  <button 
+                                    className="action-button"
+                                    onClick={() => handleVote(nestedReply.id, true, true, message.id)}
+                                  >
+                                    <span className="arrow-up">▲</span> {nestedReply.upvotes}
+                                  </button>
+                                  <button 
+                                    className="action-button"
+                                    onClick={() => handleVote(nestedReply.id, false, true, message.id)}
+                                  >
+                                    <span className="arrow-down">▼</span> {nestedReply.downvotes}
+                                  </button>
+                                  <button 
+                                    className="action-button"
+                                    onClick={() => toggleReply(message.id, reply.id)}
+                                  >
+                                    Reply
+                                  </button>
+                                  <button className="action-button">Share</button>
+                                  <button className="action-button">Report</button>
+                                </div>
                               </div>
-                              <div className="comment-content">
-                                {formatMessageWithMentions(nestedReply.content, personas, handleShowUserInfo)}
-                              </div>
-                              <div className="comment-actions">
-                                <button 
-                                  className="action-button"
-                                  onClick={() => handleVote(nestedReply.id, true, true, message.id)}
-                                >
-                                  <span className="arrow-up">▲</span> {nestedReply.upvotes}
-                                </button>
-                                <button 
-                                  className="action-button"
-                                  onClick={() => handleVote(nestedReply.id, false, true, message.id)}
-                                >
-                                  <span className="arrow-down">▼</span> {nestedReply.downvotes}
-                                </button>
-                                <button 
-                                  className="action-button"
-                                  onClick={() => toggleReply(message.id, reply.id)}
-                                >
-                                  Reply
-                                </button>
-                                <button className="action-button">Share</button>
-                                <button className="action-button">Report</button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {error && (
-            <div className="error-message">
-              <div className="error-title">Error</div>
-              <div className="error-content">{error}</div>
-              {config.isDevelopment && (
-                <div className="error-debug">
-                  API Key status: {config.togetherApiKey ? 'Configured' : 'Missing'}
-                </div>
-              )}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {error && (
+              <div className="error-message">
+                <div className="error-title">Error</div>
+                <div className="error-content">{error}</div>
+                {config.isDevelopment && (
+                  <div className="error-debug">
+                    API Key status: {config.togetherApiKey ? 'Configured' : 'Missing'}
+                  </div>
+                )}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
       </div>
       {hoveredUser && (

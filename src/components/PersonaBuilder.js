@@ -14,6 +14,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   });
   const [generatedImageUrl, setGeneratedImageUrl] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
 
   const handleAddPersona = () => {
@@ -217,7 +218,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
   };
 
   const handleClonePersona = async (persona) => {
-    setIsGenerating(true);
+    setIsCloning(true);
     setGenerationStatus('Starting clone...');
     
     try {
@@ -257,7 +258,7 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
       // Keep error message visible for 3 seconds
       setTimeout(() => setGenerationStatus(''), 3000);
     } finally {
-      setIsGenerating(false);
+      setIsCloning(false);
     }
   };
 
@@ -325,9 +326,9 @@ function PersonaBuilder({ personas, onAddPersona, onEditPersona, onDeletePersona
                 <button 
                   className="clone-button"
                   onClick={() => handleClonePersona(persona)}
-                  disabled={isGenerating}
+                  disabled={isCloning}
                 >
-                  {isGenerating ? 'Cloning...' : 'Clone'}
+                  {isCloning ? 'Cloning...' : 'Clone'}
                 </button>
                 <button 
                   className="delete-button"

@@ -59,9 +59,10 @@
 }
 
 .personas-list {
-  background-color: #1a1b1e;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
   border-radius: 12px;
-  padding: 1rem;
+  padding: 0;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
@@ -71,21 +72,8 @@
 }
 
 .personas-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.personas-list::-webkit-scrollbar-track {
-  background: #1a1b1e;
-  border-radius: 4px;
-}
-
-.personas-list::-webkit-scrollbar-thumb {
-  background: #3f4044;
-  border-radius: 4px;
-}
-
-.personas-list::-webkit-scrollbar-thumb:hover {
-  background: #4c4d52;
+  width: 0;
+  display: none;
 }
 
 .empty-state {
@@ -202,9 +190,14 @@
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
-  width: 80px;
   opacity: 0;
   transform: translateX(10px);
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 120px;
+  width: 120px;
 }
 
 .persona-card:hover .edit-button,

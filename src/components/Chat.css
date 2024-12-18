@@ -19,10 +19,14 @@ body {
   display: flex;
   flex-direction: column;
   background: #0E1113;
-  overflow-y: auto;
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+}
+
+.chat-container::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
 }
 
 .navbar {
@@ -122,6 +126,13 @@ body {
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
+  overflow-y: auto;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.chat-messages::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
 }
 
 .reddit-comment {
@@ -686,5 +697,32 @@ body {
   margin: 0.75rem 0;
   padding: 0.5rem 0;
   border-bottom: 1px solid #1a1b1e;
+}
+
+.thread-search {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #0E1113;
+  padding: 1rem;
+  border-bottom: 1px solid #1a1b1e;
+}
+
+.scrollable-area {
+  flex: 1;
+  overflow-y: auto;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollable-area::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+.reddit-comment.user .comment-avatar,
+.comment-user-info img[alt="AutoModerator's avatar"] {
+  display: none; /* Hide avatar for user messages and AutoModerator */
 }
   
