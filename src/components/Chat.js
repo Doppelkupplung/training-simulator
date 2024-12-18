@@ -309,22 +309,36 @@ function Chat({ personas }) {
   const handleVote = (messageId, isUpvote, isReply = false, parentId = null) => {
     setMessages(prev => {
       if (isReply) {
-        return prev.map(msg => 
-          msg.id === parentId 
-            ? {
-                ...msg,
-                replies: msg.replies.map(reply =>
-                  reply.id === messageId
-                    ? {
-                        ...reply,
-                        upvotes: isUpvote ? reply.upvotes + 1 : reply.upvotes,
-                        downvotes: !isUpvote ? reply.downvotes + 1 : reply.downvotes
-                      }
-                    : reply
-                )
-              }
-            : msg
-        );
+        return prev.map(msg => {
+          if (msg.id === parentId) {
+            // Helper function to update votes in nested replies
+            const updateRepliesVotes = (replies) => {
+              return replies.map(reply => {
+                if (reply.id === messageId) {
+                  return {
+                    ...reply,
+                    upvotes: isUpvote ? reply.upvotes + 1 : reply.upvotes,
+                    downvotes: !isUpvote ? reply.downvotes + 1 : reply.downvotes
+                  };
+                }
+                // If this reply has nested replies, recursively update them
+                if (reply.replies && reply.replies.length > 0) {
+                  return {
+                    ...reply,
+                    replies: updateRepliesVotes(reply.replies)
+                  };
+                }
+                return reply;
+              });
+            };
+
+            return {
+              ...msg,
+              replies: updateRepliesVotes(msg.replies)
+            };
+          }
+          return msg;
+        });
       }
       return prev.map(msg =>
         msg.id === messageId
@@ -356,6 +370,43 @@ function Chat({ personas }) {
     // Stop if we've reached 2 consecutive AI responses
     if (aiResponseCount >= 2) {
       console.log('Reached maximum AI response chain (2), stopping');
+      return;
+    }
+
+    // More sophisticated check for user-directed messages
+    const isDirectedAtUser = (() => {
+      const message = messageContent.toLowerCase();
+      
+      // Check for direct mentions
+      if (message.includes('@you') || message.includes('u/you')) return true;
+      
+      // Check for question patterns directed at 'you'
+      const questionPatterns = [
+        /\b(what|how|why|when|where|who|could|would|do|are|can|will)\s+(you|your)\b/i,
+        /\b(you|your)\s+(think|believe|opinion|thoughts|view|take|perspective)\b/i
+      ];
+      if (questionPatterns.some(pattern => pattern.test(message))) return true;
+      
+      // Check for imperative sentences directed at 'you'
+      const imperativePatterns = [
+        /^(please|pls|kindly|hey)\s+(you|your)\b/i,
+        /\b(tell|let|give|share|help|explain)\s+(me|us)\b/i,
+        /\b(can|could)\s+you\s+(please|pls)?\b/i
+      ];
+      if (imperativePatterns.some(pattern => pattern.test(message))) return true;
+      
+      // Check for direct addressing
+      const addressingPatterns = [
+        /^(hey|hi|hello|dear)\s+(you|user)\b/i,
+        /\b(asking|directed at|meant for)\s+(you|the user)\b/i
+      ];
+      if (addressingPatterns.some(pattern => pattern.test(message))) return true;
+      
+      return false;
+    })();
+    
+    if (isDirectedAtUser) {
+      console.log('Message is directed at user, skipping random reply');
       return;
     }
 
@@ -495,7 +546,104 @@ function Chat({ personas }) {
 
       setGeneratingPersona(selectedPersona);
 
-      const systemPrompt = `You are roleplaying as a Reddit user with the following profile.:
+      // Get the message being replied to
+      let messageToVoteOn = null;
+
+      // If we're replying to a nested reply
+      if (targetReplyToReplyId && targetParentId) {
+        const parentMessage = messages.find(m => m.id === targetParentId);
+        if (parentMessage?.replies) {
+          const targetReply = parentMessage.replies.find(r => r.id === targetReplyToReplyId);
+          if (targetReply) {
+            messageToVoteOn = {
+              id: targetReplyToReplyId,
+              content: targetReply.content,
+              parentId: targetParentId,
+              isReply: true
+            };
+          }
+        }
+      }
+      // If we're replying to a direct reply or main message
+      else if (targetParentId) {
+        const parentMessage = messages.find(m => m.id === targetParentId);
+        if (parentMessage) {
+          messageToVoteOn = {
+            id: targetParentId,
+            content: parentMessage.content,
+            isReply: false
+          };
+        }
+      }
+
+      // Perform sentiment analysis and voting if we have a target message
+      if (messageToVoteOn) {
+        console.log('Analyzing sentiment for message:', {
+          id: messageToVoteOn.id,
+          content: messageToVoteOn.content,
+          isReply: messageToVoteOn.isReply,
+          parentId: messageToVoteOn.parentId
+        });
+        
+        const sentimentPrompt = `You are analyzing the sentiment of this message: "${messageToVoteOn.content}"
+Based on your personality and interests, would you upvote or downvote this message?
+Consider factors like:
+- Agreement/disagreement with the message
+- Quality of the content
+- Relevance to your interests
+- Tone and style
+
+Respond with EXACTLY one word: either "upvote" or "downvote"`;
+
+        const sentimentResponse = await together.chat.completions.create({
+          model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are roleplaying as a Reddit user with the following profile:
+Username: ${selectedPersona.username}
+Personality: ${selectedPersona.personality}
+Interests: ${selectedPersona.interests}
+Writing Style: ${selectedPersona.writingStyle}`
+            },
+            {
+              role: 'user',
+              content: sentimentPrompt
+            }
+          ],
+          temperature: 0.7,
+        });
+
+        const sentiment = sentimentResponse.choices[0].message.content.trim().toLowerCase();
+        const isUpvote = sentiment === 'upvote';
+
+        console.log('Vote decision:', {
+          messageId: messageToVoteOn.id,
+          sentiment,
+          isUpvote,
+          isReply: messageToVoteOn.isReply,
+          parentId: messageToVoteOn.parentId,
+          persona: selectedPersona.username
+        });
+
+        // Vote on the message
+        if (messageToVoteOn.isReply) {
+          console.log('Voting on reply:', {
+            replyId: messageToVoteOn.id,
+            parentId: messageToVoteOn.parentId,
+            isUpvote
+          });
+          handleVote(messageToVoteOn.id, isUpvote, true, messageToVoteOn.parentId);
+        } else {
+          console.log('Voting on main message:', {
+            messageId: messageToVoteOn.id,
+            isUpvote
+          });
+          handleVote(messageToVoteOn.id, isUpvote);
+        }
+      }
+
+      const systemPrompt = `You are roleplaying as a Reddit user with the following profile:
 Username: ${selectedPersona.username}
 Karma: ${selectedPersona.karma}
 Personality: ${selectedPersona.personality}
@@ -503,7 +651,7 @@ Interests: ${selectedPersona.interests}
 Writing Style: ${selectedPersona.writingStyle}
 
 Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise.`;
-      
+
       // Use the message chain for context
       const chatMessages = messageChain.map(msg => ({ 
         role: msg.role, 
