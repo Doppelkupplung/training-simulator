@@ -13,6 +13,23 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Update document title based on current page
+  useEffect(() => {
+    switch (currentPage) {
+      case 'personas':
+        document.title = 'Persona Builder - Readit';
+        break;
+      case 'thread':
+        document.title = 'Thread Builder - Readit';
+        break;
+      case 'chat':
+        document.title = 'Readit';
+        break;
+      default:
+        document.title = 'Readit';
+    }
+  }, [currentPage]);
+
   // Load personas from database
   useEffect(() => {
     const loadPersonas = async () => {

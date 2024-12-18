@@ -75,120 +75,138 @@ const getMessageChain = (messages, messageId, replyId = null) => {
 
 const selectNextPersona = async (userMessage, personas, messageChain, aiResponseCount, currentThread) => {
   try {
-    // Get the last few participants in order, but only from the current thread
-    const recentParticipants = messageChain
-      .filter(msg => msg.role === 'assistant' && msg.username !== 'AutoModerator')
-      .map(msg => msg.username)
-      .reverse()
-      .slice(0, 3);
-
     console.log('\n=== Persona Selection Debug ===');
-    console.log('Recent participants in current thread:', recentParticipants);
+
+    // 1. Check for @ mentions
+    const mentionPattern = new RegExp(`@(${personas.map(p => p.username).join('|')})\\b`, 'g');
+    const mentions = userMessage.match(mentionPattern);
     
-    // Filter out personas that shouldn't participate
+    if (mentions && mentions.length > 0) {
+      const mentionedUsername = mentions[0].substring(1);
+      const mentionedPersona = personas.find(p => 
+        p.username === mentionedUsername && 
+        p.username !== 'AutoModerator' && 
+        p.username !== 'You'
+      );
+      
+      if (mentionedPersona) {
+        console.log('Selected mentioned persona:', mentionedPersona.username);
+        return mentionedPersona;
+      }
+    }
+
+    // Get available personas (excluding AutoModerator and You)
     const availablePersonas = personas.filter(p => 
-      // Don't allow the most recent responder in this thread to reply
-      p.username !== recentParticipants[0] &&
-      // Don't allow AutoModerator in conversations
       p.username !== 'AutoModerator' &&
-      // Don't allow the user as a persona
       p.username !== 'You'
     );
 
-    console.log('Available personas after filtering:', availablePersonas.map(p => p.username));
+    // 2. Check if it's a continuation of conversation
+    const analysisPrompt = `You are analyzing a conversation to determine if a message is directly responding to or addressing a previous message.
 
-    if (availablePersonas.length === 0) {
-      console.log('No available personas after filtering');
-      return null;
-    }
+Recent conversation:
+${messageChain.slice(-3).map(msg => `u/${msg.username}: ${msg.content}`).join('\n')}
 
-    // Format recent messages for context
-    const recentMessages = messageChain
-      .slice(-3)
-      .map(msg => `u/${msg.username}: ${msg.content}`)
-      .join('\n');
+New message: "${userMessage}"
 
-    // Create the analysis prompt with thread context
-    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message in a thread.
+Is this message directly responding to or addressing any specific previous message? If yes, which user was it addressing?
+Answer in this format:
+Is Addressing: [yes/no]
+Target User: [username or "none"]
+Reasoning: [brief explanation]`;
 
-Thread Context:
-Subreddit: r/${currentThread.subreddit}
-Title: "${currentThread.title}"
-Description: "${currentThread.description}"
-
-Recent conversation in this thread:
-${recentMessages}
-
-New message to analyze: "${userMessage}"
-
-Available personas (ONLY select from these - these are the only valid options):
-${availablePersonas.map((p, i) => `
-${i + 1}. Username: ${p.username}
-   Interests & Expertise: ${p.interests}`).join('\n')}
-
-Instructions:
-1. Analyze the conversation flow and topic
-2. Select a persona whose interests and expertise match the discussion topic and thread context
-3. IMPORTANT: You MUST select from the available personas listed above
-4. Consider conversation continuity but prioritize topic relevance and expertise
-5. Avoid selecting personas who have recently participated in this thread
-
-Format your response EXACTLY like this:
-Selected Persona: [number]
-Topic: [main topic of discussion]
-Reasoning: [2-3 sentences explaining the selection]
-
-End your response with ONLY the number on the last line.`;
-
-    const response = await together.chat.completions.create({
+    const continuationResponse = await together.chat.completions.create({
       model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are a conversation analyzer that selects the most relevant persona based on topic matching and conversation flow.'
+          content: 'You analyze conversation flow and determine if messages are addressing specific previous participants.'
         },
         {
           role: 'user',
           content: analysisPrompt
         }
       ],
+      temperature: 0.1
     });
 
-    const fullResponse = response.choices[0].message.content;
-    console.log('LLM Response:', fullResponse);
+    const continuationAnalysis = continuationResponse.choices[0].message.content;
+    console.log('Continuation Analysis:', continuationAnalysis);
 
-    // Parse the response to get the selected persona index
-    const lines = fullResponse.split('\n').filter(line => line.trim());
-    let selectedIndex = -1;
-
-    // Try to find the index in the Selected Persona line
-    const selectedPersonaLine = lines.find(line => line.startsWith('Selected Persona:'));
-    if (selectedPersonaLine) {
-      const match = selectedPersonaLine.match(/Selected Persona:\s*(\d+)/);
-      if (match) {
-        selectedIndex = parseInt(match[1]) - 1;
+    if (continuationAnalysis.includes('Is Addressing: yes')) {
+      const targetUserMatch = continuationAnalysis.match(/Target User: ([^\n]+)/);
+      if (targetUserMatch) {
+        const targetUsername = targetUserMatch[1].trim();
+        if (targetUsername !== 'none') {
+          const targetPersona = availablePersonas.find(p => p.username === targetUsername);
+          if (targetPersona) {
+            console.log('Selected persona based on conversation continuation:', targetPersona.username);
+            return targetPersona;
+          }
+        }
       }
     }
 
-    // If not found, check the last line
-    if (selectedIndex === -1) {
-      const lastLine = lines[lines.length - 1].trim();
-      if (/^\d+$/.test(lastLine)) {
-        selectedIndex = parseInt(lastLine) - 1;
+    // 3. Match interests with message content
+    const interestMatchPrompt = `You are analyzing a message to find the most relevant persona based on interests and expertise.
+
+Message to analyze: "${userMessage}"
+
+Available personas:
+${availablePersonas.map((p, i) => `
+${i + 1}. Username: ${p.username}
+   Interests & Expertise: ${p.interests}`).join('\n')}
+
+Instructions:
+1. Identify the main topics in the message
+2. Find the persona whose interests best match these topics
+3. The selected persona MUST have relevant interests or expertise
+4. Only select a persona if there is a clear topic match
+
+Format your response EXACTLY like this:
+Has Topic Match: [yes/no]
+Selected Persona: [number or "none"]
+Topic Match: [explain how the selected persona's interests match the message topics]`;
+
+    const interestResponse = await together.chat.completions.create({
+      model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You analyze message topics and match them with persona interests and expertise.'
+        },
+        {
+          role: 'user',
+          content: interestMatchPrompt
+        }
+      ],
+      temperature: 0.3
+    });
+
+    const interestAnalysis = interestResponse.choices[0].message.content;
+    console.log('Interest Analysis:', interestAnalysis);
+
+    if (interestAnalysis.includes('Has Topic Match: yes')) {
+      const selectedMatch = interestAnalysis.match(/Selected Persona: (\d+)/);
+      if (selectedMatch) {
+        const selectedIndex = parseInt(selectedMatch[1]) - 1;
+        if (selectedIndex >= 0 && selectedIndex < availablePersonas.length) {
+          const selectedPersona = availablePersonas[selectedIndex];
+          console.log('Selected persona based on interests:', selectedPersona.username);
+          return selectedPersona;
+        }
       }
     }
 
-    if (selectedIndex >= 0 && selectedIndex < availablePersonas.length) {
-      const selectedPersona = availablePersonas[selectedIndex];
-      console.log('Selected:', selectedPersona.username);
-      console.log('===============================\n');
-      return selectedPersona;
-    }
+    // 4. Random selection as fallback
+    const randomIndex = Math.floor(Math.random() * availablePersonas.length);
+    const randomPersona = availablePersonas[randomIndex];
+    console.log('Selected random persona:', randomPersona.username);
+    return randomPersona;
 
-    return availablePersonas[0]; // Fallback to first available persona
   } catch (error) {
     console.error('Error selecting persona:', error);
-    return null; // Return null instead of undefined availablePersonas
+    return null;
   }
 };
 
@@ -300,6 +318,15 @@ function Chat({ personas }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredMessages, setFilteredMessages] = useState([]);
 
+  // Update document title when thread changes
+  useEffect(() => {
+    if (currentThread && currentThread.id !== 'default') {
+      document.title = `${currentThread.title} - Readit`;
+    } else {
+      document.title = 'Readit';
+    }
+  }, [currentThread]);
+
   // Add event listener for thread cleared event
   useEffect(() => {
     const handleThreadCleared = (event) => {
@@ -365,6 +392,9 @@ function Chat({ personas }) {
         ? { ...msg, isReplyOpen: !msg.isReplyOpen }
         : { ...msg, isReplyOpen: false };
     }));
+
+    // Clear replyText when closing any reply form
+    setReplyText('');
 
     // Add setTimeout to wait for the reply form to be rendered
     setTimeout(() => {
@@ -1316,6 +1346,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                       personas={personas}
                       onSubmit={() => handleSubmitReply(message.id)}
                       onCancel={() => toggleReply(message.id)}
+                      replyToUsername={message.username}
                     />
                   </div>
                 )}
@@ -1391,6 +1422,7 @@ Respond to the conversation in character, maintaining consistency with your prof
                               personas={personas}
                               onSubmit={() => handleSubmitReply(message.id, reply.id)}
                               onCancel={() => toggleReply(message.id, reply.id)}
+                              replyToUsername={reply.username}
                             />
                           </div>
                         )}
