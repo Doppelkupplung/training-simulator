@@ -19,6 +19,7 @@
   color: #e4e5e7;
   margin: 0;
   font-size: 1.8rem;
+  font-weight: 600;
 }
 
 .create-thread-button {
@@ -26,10 +27,14 @@
   background-color: #ff4500;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 999px;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .create-thread-button:hover {
@@ -39,11 +44,14 @@
 
 .threads-list {
   background-color: #1a1b1e;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1rem;
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .empty-state {
@@ -54,26 +62,66 @@
   color: #a6a7ab;
   text-align: center;
   font-size: 1.1rem;
+  background: #25262b;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.thread-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.thread-title {
+  color: #e4e5e7;
+  font-size: 1.2rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  font-weight: 600;
+  line-height: 1.4;
+  background: none;
 }
 
 .thread-card {
   background-color: #25262b;
-  border-radius: 6px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  transition: all 0.3s ease;
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.thread-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 69, 0, 0.2), transparent);
+  transform: translateY(-1px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
 .thread-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-color: rgba(255, 69, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.thread-card:hover::before {
+  opacity: 1;
 }
 
 .thread-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0;
 }
 
 .thread-info {
@@ -86,7 +134,12 @@
 
 .subreddit {
   color: #ff4500;
-  font-weight: 500;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.thread-card:hover .subreddit {
+  color: #ff5414;
 }
 
 .dot {
@@ -99,31 +152,34 @@
 
 .delete-button {
   padding: 0.5rem 1rem;
-  background-color: #3a2731;
+  background-color: transparent;
   color: #ff6b6b;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-radius: 999px;
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.3s ease;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.thread-card:hover .delete-button {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .delete-button:hover {
-  background-color: #4a2d3a;
-  transform: translateY(-1px);
-}
-
-.thread-title {
-  color: #e4e5e7;
-  font-size: 1.2rem;
-  margin: 0.5rem 0;
+  background-color: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.3);
 }
 
 .thread-description {
   color: #a6a7ab;
   font-size: 0.95rem;
-  margin: 0.5rem 0;
-  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
 }
 
 .thread-stats {
@@ -133,6 +189,20 @@
   color: #a6a7ab;
   font-size: 0.9rem;
   margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Form styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e4e5e7;
+  font-weight: 500;
 }
 
 .subreddit-input {
@@ -150,6 +220,74 @@
 
 .subreddit-input input {
   padding-left: 32px !important;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #1a1b1e;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  color: #e4e5e7;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #1a1b1e;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  color: #e4e5e7;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: #ff4500;
+  box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.2);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.modal-actions button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.modal-actions .cancel {
+  background: transparent;
+  color: #e4e5e7;
+  border: 1px solid #343536;
+}
+
+.modal-actions .cancel:hover {
+  border-color: #4a4b50;
+}
+
+.modal-actions .submit {
+  background: #ff4500;
+  color: white;
+  border: none;
+}
+
+.modal-actions .submit:hover {
+  background: #ff5414;
+  transform: translateY(-1px);
 }
 
 /* Scrollbar styles */
@@ -158,7 +296,7 @@
 }
 
 .threads-list::-webkit-scrollbar-track {
-  background: #1a1b1f;
+  background: #1a1b1e;
   border-radius: 4px;
 }
 

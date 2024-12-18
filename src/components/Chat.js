@@ -5,6 +5,7 @@ import './Chat.css';
 import CommentInput from './CommentInput';
 import './CommentInput.css';
 import UserInfoPopup from './UserInfoPopup';
+import ThreadSearch from './ThreadSearch';
 
 let together = null;
 let initError = null;
@@ -72,21 +73,21 @@ const getMessageChain = (messages, messageId, replyId = null) => {
   return chain;
 };
 
-const selectNextPersona = async (userMessage, personas, messageChain, aiResponseCount) => {
+const selectNextPersona = async (userMessage, personas, messageChain, aiResponseCount, currentThread) => {
   try {
-    // Get the last few participants in order
+    // Get the last few participants in order, but only from the current thread
     const recentParticipants = messageChain
-      .filter(msg => msg.role === 'assistant')
+      .filter(msg => msg.role === 'assistant' && msg.username !== 'AutoModerator')
       .map(msg => msg.username)
       .reverse()
       .slice(0, 3);
 
     console.log('\n=== Persona Selection Debug ===');
-    console.log('Recent participants:', recentParticipants);
+    console.log('Recent participants in current thread:', recentParticipants);
     
     // Filter out personas that shouldn't participate
     const availablePersonas = personas.filter(p => 
-      // Don't allow the most recent responder to reply
+      // Don't allow the most recent responder in this thread to reply
       p.username !== recentParticipants[0] &&
       // Don't allow AutoModerator in conversations
       p.username !== 'AutoModerator' &&
@@ -107,15 +108,15 @@ const selectNextPersona = async (userMessage, personas, messageChain, aiResponse
       .map(msg => `u/${msg.username}: ${msg.content}`)
       .join('\n');
 
-    // Create the analysis prompt
-    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message in a thread about the 2024 US election.
+    // Create the analysis prompt with thread context
+    const analysisPrompt = `You are a conversation analyzer. Your task is to select the most appropriate Reddit user to respond to a message in a thread.
 
 Thread Context:
-Subreddit: r/politics
-Title: "2024 election thoughts?"
-Description: "What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful."
+Subreddit: r/${currentThread.subreddit}
+Title: "${currentThread.title}"
+Description: "${currentThread.description}"
 
-Recent conversation:
+Recent conversation in this thread:
 ${recentMessages}
 
 New message to analyze: "${userMessage}"
@@ -127,9 +128,10 @@ ${i + 1}. Username: ${p.username}
 
 Instructions:
 1. Analyze the conversation flow and topic
-2. Select a persona whose interests and expertise match the discussion about politics and the 2024 election
+2. Select a persona whose interests and expertise match the discussion topic and thread context
 3. IMPORTANT: You MUST select from the available personas listed above
-4. Consider conversation continuity but prioritize topic relevance and political expertise
+4. Consider conversation continuity but prioritize topic relevance and expertise
+5. Avoid selecting personas who have recently participated in this thread
 
 Format your response EXACTLY like this:
 Selected Persona: [number]
@@ -191,6 +193,32 @@ End your response with ONLY the number on the last line.`;
 };
 
 const STORAGE_KEY = 'reddit_simulator_messages';
+const THREADS_STORAGE_KEY = 'reddit_threads';
+
+const countTotalMessages = (messages) => {
+  let total = 0;
+  
+  const countReplies = (replies) => {
+    if (!replies) return 0;
+    let count = replies.length;
+    for (const reply of replies) {
+      if (reply.replies) {
+        count += countReplies(reply.replies);
+      }
+    }
+    return count;
+  };
+
+  // Count top-level messages (excluding the AutoModerator welcome message)
+  total = messages.filter(msg => msg.username !== 'AutoModerator').length;
+  
+  // Add all replies
+  for (const message of messages) {
+    total += countReplies(message.replies);
+  }
+  
+  return total;
+};
 
 const formatMessageWithMentions = (content, personas, onShowUserInfo) => {
   // Create a regex pattern that matches @username mentions
@@ -228,9 +256,17 @@ const formatMessageWithMentions = (content, personas, onShowUserInfo) => {
 };
 
 function Chat({ personas }) {
+  const [currentThread, setCurrentThread] = useState({
+    id: 'default',
+    subreddit: 'politics',
+    title: '2024 election thoughts?',
+    description: 'What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful.',
+    createdAt: new Date().toISOString()
+  });
+
   const [messages, setMessages] = useState(() => {
-    // Try to load messages from localStorage on initial render
-    const savedMessages = localStorage.getItem(STORAGE_KEY);
+    // Try to load messages from localStorage for the current thread
+    const savedMessages = localStorage.getItem(`${STORAGE_KEY}_${currentThread.id}`);
     if (savedMessages) {
       try {
         return JSON.parse(savedMessages);
@@ -253,11 +289,6 @@ function Chat({ personas }) {
     }];
   });
 
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  }, [messages]);
-
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(initError);
   const [generatingPersona, setGeneratingPersona] = useState(null);
@@ -266,6 +297,13 @@ function Chat({ personas }) {
   const [replyText, setReplyText] = useState('');
   const [hoveredUser, setHoveredUser] = useState(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredMessages, setFilteredMessages] = useState([]);
+
+  // Save messages to localStorage whenever they change, using thread-specific key
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_${currentThread.id}`, JSON.stringify(messages));
+  }, [messages, currentThread.id]);
 
   useEffect(() => {
     if (initError) {
@@ -542,11 +580,11 @@ Reply to this message in a way that encourages further discussion while staying 
       setIsStreaming(true);
       setError(null);
 
-      // Get the full message chain for context
+      // Get the full message chain for context, but only from the current thread
       const messageChain = getMessageChain(messages, parentId, replyToReplyId);
       
-      // Select the next persona to respond
-      const selectedPersona = await selectNextPersona(userMessage, personas, messageChain, aiResponseCount);
+      // Select the next persona to respond with current thread context
+      const selectedPersona = await selectNextPersona(userMessage, personas, messageChain, aiResponseCount, currentThread);
       if (!selectedPersona) {
         console.log('No suitable persona available');
         return;
@@ -612,7 +650,9 @@ Respond with EXACTLY one word: either "upvote" or "downvote"`;
 Username: ${selectedPersona.username}
 Personality: ${selectedPersona.personality}
 Interests: ${selectedPersona.interests}
-Writing Style: ${selectedPersona.writingStyle}`
+Writing Style: ${selectedPersona.writingStyle}
+
+You are in r/${currentThread.subreddit} responding to a thread titled "${currentThread.title}"`
             },
             {
               role: 'user',
@@ -658,18 +698,24 @@ Personality: ${selectedPersona.personality}
 Interests: ${selectedPersona.interests}
 Writing Style: ${selectedPersona.writingStyle}
 
-You are participating in a thread on r/politics titled "2024 election thoughts?" with the following description:
-"What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful."
+You are participating in a thread on r/${currentThread.subreddit} titled "${currentThread.title}" with the following description:
+"${currentThread.description}"
 
 Respond to the conversation in character, maintaining consistency with your profile's personality and writing style. Use Reddit terminology where appropriate. Your response should reflect your interests and expertise while staying relevant to the thread topic.`;
 
-      // Use the message chain for context
+      // Use the message chain for context, but only from the current thread
       const chatMessages = messageChain.map(msg => ({ 
         role: msg.role, 
         content: msg.content 
       }));
 
       console.log('Generating response for:', userMessage);
+      console.log('Current thread context:', {
+        subreddit: currentThread.subreddit,
+        title: currentThread.title,
+        description: currentThread.description
+      });
+
       const stream = await together.chat.completions.create({
         model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
         messages: [
@@ -957,8 +1003,8 @@ Respond to the conversation in character, maintaining consistency with your prof
 
   // Add clearMessages function
   const clearMessages = () => {
-    if (window.confirm('Are you sure you want to clear the entire thread? This cannot be undone.')) {
-      setMessages([{
+    if (window.confirm('Are you sure you want to clear this thread? This cannot be undone.')) {
+      const defaultMessage = {
         id: 1,
         role: 'assistant',
         content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
@@ -969,7 +1015,12 @@ Respond to the conversation in character, maintaining consistency with your prof
         isReplyOpen: false,
         upvotes: 1,
         downvotes: 0
-      }]);
+      };
+      setMessages([defaultMessage]);
+      // Clear only the current thread's messages from localStorage
+      localStorage.removeItem(`${STORAGE_KEY}_${currentThread.id}`);
+      // Save the default message for the current thread
+      localStorage.setItem(`${STORAGE_KEY}_${currentThread.id}`, JSON.stringify([defaultMessage]));
     }
   };
 
@@ -1010,6 +1061,98 @@ Respond to the conversation in character, maintaining consistency with your prof
     }
   };
 
+  // Add useEffect for filtering messages based on search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredMessages(messages);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = messages.filter(message => {
+      const matchesContent = message.content.toLowerCase().includes(query);
+      const matchesUsername = message.username.toLowerCase().includes(query);
+      
+      // Also search in replies
+      const hasMatchingReplies = message.replies.some(reply => 
+        reply.content.toLowerCase().includes(query) ||
+        reply.username.toLowerCase().includes(query)
+      );
+
+      return matchesContent || matchesUsername || hasMatchingReplies;
+    });
+
+    setFilteredMessages(filtered);
+  }, [searchQuery, messages]);
+
+  const handleThreadSelect = (thread) => {
+    setCurrentThread(thread);
+    // Load messages for the selected thread
+    const savedMessages = localStorage.getItem(`${STORAGE_KEY}_${thread.id}`);
+    if (savedMessages) {
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch (e) {
+        console.error('Failed to load messages for thread:', e);
+        // Fall back to default initial message
+        setMessages([{
+          id: 1,
+          role: 'assistant',
+          content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
+          username: 'AutoModerator',
+          karma: 1000000,
+          timestamp: new Date().toISOString(),
+          replies: [],
+          isReplyOpen: false,
+          upvotes: 1,
+          downvotes: 0
+        }]);
+      }
+    } else {
+      // No saved messages for this thread, set default initial message
+      setMessages([{
+        id: 1,
+        role: 'assistant',
+        content: "Welcome to the thread! Feel free to start a discussion, and one of our community members will respond.",
+        username: 'AutoModerator',
+        karma: 1000000,
+        timestamp: new Date().toISOString(),
+        replies: [],
+        isReplyOpen: false,
+        upvotes: 1,
+        downvotes: 0
+      }]);
+    }
+    setFilteredMessages([]);
+    setSearchQuery('');
+  };
+
+  // Add useEffect to update thread's comment count
+  useEffect(() => {
+    // Skip if it's the default thread
+    if (currentThread.id === 'default') return;
+
+    // Get current threads
+    const savedThreads = localStorage.getItem(THREADS_STORAGE_KEY);
+    if (savedThreads) {
+      try {
+        const threads = JSON.parse(savedThreads);
+        const updatedThreads = threads.map(thread => {
+          if (thread.id === currentThread.id) {
+            return {
+              ...thread,
+              comments: countTotalMessages(messages)
+            };
+          }
+          return thread;
+        });
+        localStorage.setItem(THREADS_STORAGE_KEY, JSON.stringify(updatedThreads));
+      } catch (e) {
+        console.error('Failed to update thread comment count:', e);
+      }
+    }
+  }, [messages, currentThread.id]);
+
   return (
     <div style={{ 
       margin: 0,
@@ -1019,12 +1162,16 @@ Respond to the conversation in character, maintaining consistency with your prof
       flexDirection: 'column'
     }}>
       <div className="chat-container">
+        <ThreadSearch 
+          onSearch={setSearchQuery} 
+          onThreadSelect={handleThreadSelect}
+        />
         <div className="thread-title">
           <div className="thread-header">
             <div className="subreddit-info">
-              <span className="subreddit">r/politics</span>
+              <span className="subreddit">r/{currentThread.subreddit}</span>
               <span className="dot">•</span>
-              <span className="post-time">1 yr. ago</span>
+              <span className="post-time">{formatTimestamp(currentThread.createdAt)}</span>
             </div>
             <button 
               className="clear-thread-button"
@@ -1033,14 +1180,14 @@ Respond to the conversation in character, maintaining consistency with your prof
               Clear Thread
             </button>
           </div>
-          <h2>2024 election thoughts?</h2>
+          <h2>{currentThread.title}</h2>
           <div className="post-description">
-            What are your thoughts on the upcoming 2024 election? Looking to hear different perspectives on key issues, candidates, and potential outcomes. Please keep discussion civil and respectful.
+            {currentThread.description}
           </div>
           <div className="thread-info">
             <span className="thread-stats">100% Upvoted</span>
             <span className="thread-stats">•</span>
-            <span className="thread-stats">r/politics</span>
+            <span className="thread-stats">r/{currentThread.subreddit}</span>
           </div>
           
           <div className="add-comment-wrapper">
@@ -1070,7 +1217,7 @@ Respond to the conversation in character, maintaining consistency with your prof
         </div>
         
         <div className="chat-messages">
-          {messages.map((message) => (
+          {filteredMessages.map((message) => (
             <div 
               key={message.id} 
               className={`reddit-comment ${message.role}`}

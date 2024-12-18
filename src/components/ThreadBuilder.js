@@ -18,6 +18,22 @@ function ThreadBuilder() {
     return [];
   });
 
+  // Add effect to periodically refresh threads from localStorage
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      const savedThreads = localStorage.getItem(STORAGE_KEY);
+      if (savedThreads) {
+        try {
+          setThreads(JSON.parse(savedThreads));
+        } catch (e) {
+          console.error('Failed to refresh threads:', e);
+        }
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(refreshInterval);
+  }, []);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newThread, setNewThread] = useState({
     subreddit: '',
@@ -94,26 +110,28 @@ function ThreadBuilder() {
           </div>
         ) : (
           threads.map(thread => (
-            <div key={thread.id} className="thread-card">
-              <div className="thread-card-header">
-                <div className="thread-info">
-                  <span className="subreddit">r/{thread.subreddit}</span>
-                  <span className="dot">•</span>
-                  <span className="timestamp">{formatTimestamp(thread.createdAt)}</span>
+            <div key={thread.id} className="thread-item">
+              <div className="thread-card">
+                <div className="thread-card-header">
+                  <div className="thread-info">
+                    <span className="subreddit">r/{thread.subreddit}</span>
+                    <span className="dot">•</span>
+                    <span className="timestamp">{formatTimestamp(thread.createdAt)}</span>
+                  </div>
+                  <button 
+                    className="delete-button"
+                    onClick={() => handleDelete(thread.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
-                <button 
-                  className="delete-button"
-                  onClick={() => handleDelete(thread.id)}
-                >
-                  Delete
-                </button>
-              </div>
-              <h3 className="thread-title">{thread.title}</h3>
-              <p className="thread-description">{thread.description}</p>
-              <div className="thread-stats">
-                <span>{thread.upvotes} upvotes</span>
-                <span className="dot">•</span>
-                <span>{thread.comments} comments</span>
+                <h3 className="thread-title">{thread.title}</h3>
+                <p className="thread-description">{thread.description}</p>
+                <div className="thread-stats">
+                  <span>{thread.upvotes} upvotes</span>
+                  <span className="dot">•</span>
+                  <span>{thread.comments} comments</span>
+                </div>
               </div>
             </div>
           ))
