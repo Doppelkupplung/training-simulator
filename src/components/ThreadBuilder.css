@@ -1,0 +1,326 @@
+.thread-builder {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0E1113;
+}
+
+.thread-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.thread-builder-header h2 {
+  color: #e4e5e7;
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.create-thread-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #ff4500;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.create-thread-button:hover {
+  background-color: #ff5414;
+  transform: translateY(-1px);
+}
+
+.threads-list {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  border-radius: 12px;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.threads-list::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: #a6a7ab;
+  text-align: center;
+  font-size: 1.1rem;
+  background: #1a1b1e;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.thread-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-card {
+  background-color: #1a1b1e;
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.thread-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 69, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.thread-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.thread-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.subreddit {
+  color: #ff4500;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.timestamp {
+  color: #808080;
+  font-size: 0.85rem;
+}
+
+.dot {
+  color: #4a4b50;
+  font-size: 0.85rem;
+}
+
+.thread-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.thread-card-action {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  opacity: 0;
+  transform: translateX(10px);
+  text-align: center;
+}
+
+.clear-button {
+  color: #ff4500;
+  border: 1px solid rgba(255, 69, 0, 0.2);
+  width: 120px;
+}
+
+.clear-button:hover {
+  background: rgba(255, 69, 0, 0.1);
+  border-color: rgba(255, 69, 0, 0.3);
+}
+
+.delete-button {
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  width: 120px;
+}
+
+.delete-button:hover {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+.thread-card:hover .thread-card-action {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.thread-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.thread-title {
+  color: #e4e5e7;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.thread-description {
+  color: #a6a7ab;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.thread-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #808080;
+  font-size: 0.85rem;
+}
+
+/* Form styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e4e5e7;
+  font-weight: 500;
+}
+
+.subreddit-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.prefix {
+  position: absolute;
+  left: 12px;
+  color: #a6a7ab;
+  font-weight: 500;
+}
+
+.subreddit-input input {
+  padding-left: 32px !important;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #1a1b1e;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  color: #e4e5e7;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #1a1b1e;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  color: #e4e5e7;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: #ff4500;
+  box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.2);
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.modal-actions button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.modal-actions .cancel {
+  background: transparent;
+  color: #e4e5e7;
+  border: 1px solid #343536;
+}
+
+.modal-actions .cancel:hover {
+  border-color: #4a4b50;
+}
+
+.modal-actions .submit {
+  background: #ff4500;
+  color: white;
+  border: none;
+}
+
+.modal-actions .submit:hover {
+  background: #ff5414;
+  transform: translateY(-1px);
+}
+
+/* Scrollbar styles */
+.threads-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.threads-list::-webkit-scrollbar-track {
+  background: #1a1b1e;
+  border-radius: 4px;
+}
+
+.threads-list::-webkit-scrollbar-thumb {
+  background: #3f4044;
+  border-radius: 4px;
+}
+
+.threads-list::-webkit-scrollbar-thumb:hover {
+  background: #4c4d52;
+} 

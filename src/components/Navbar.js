@@ -7,18 +7,15 @@ function Navbar() {
       <div className="navbar-trigger" />
       <nav className="navbar">
         <div className="navbar-brand">
-          <h1>Chat Simulator</h1>
         </div>
         <div className="navbar-links">
           <a href="#chat">Chat</a>
           <a href="#personas">Persona Builder</a>
-          <a href="#scenarios">Scenarios</a>
-          <a href="#history">Chat History</a>
-          <a href="#settings">Settings</a>
+          <a href="#thread">Thread Builder</a>
         </div>
       </nav>
     </>
   );
 }
 
-export default Navbar; 
+export default Navbar;

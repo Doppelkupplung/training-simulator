@@ -10,13 +10,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
-  background-color: #1a1b1e;
+  background-color: #0E1113;
   color: #e4e5e7;
 }
 
 .App {
+  background-color: #0E1113;
   min-height: 100vh;
-  background-color: #1a1b1e;
   padding-top: 20px;
 }
 
@@ -75,4 +75,46 @@ button {
 
 .error {
   color: #ff6b6b;
+}
+
+.container {
+  background-color: #0E1113;
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #343536;
+  border-radius: 4px;
+  border: 2px solid #0E1113;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4b4f;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Hide scrollbar when not hovering */
+::-webkit-scrollbar-thumb {
+  visibility: hidden;
+}
+
+*:hover > ::-webkit-scrollbar-thumb {
+  visibility: visible;
 }

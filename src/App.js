@@ -3,6 +3,7 @@ import './App.css';
 import Navbar from './components/Navbar';
 import Chat from './components/Chat';
 import PersonaBuilder from './components/PersonaBuilder';
+import ThreadBuilder from './components/ThreadBuilder';
 import ErrorBoundary from './components/ErrorBoundary';
 import dbService from './services/database';
 
@@ -99,19 +100,15 @@ function App() {
             onDeletePersona={handleDeletePersona}
           />
         );
+      case 'thread':
+        return <ThreadBuilder />;
       case 'chat':
         return <Chat personas={personas} />;
-      case 'scenarios':
-        return <div>Scenarios Page</div>;
-      case 'history':
-        return <div>Chat History Page</div>;
-      case 'settings':
-        return <div>Settings Page</div>;
       default:
         return <Chat personas={personas} />;
     }
   };
-  
+
   return (
     <ErrorBoundary>
       <div className="App">
